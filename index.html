@@ -1,0 +1,1403 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<title>Fullscreen Stopwatch</title>
+
+<style>
+:root {
+  --bg: #080b12;
+  --accent: #65e6b4;
+  --muted: #94a3b8;
+  --panel: #111827;
+  --border: #263449;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(ellipse at center, #172235, var(--bg) 70%);
+  color: white;
+  font-family: system-ui, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, select, input {
+  font: inherit;
+}
+
+button {
+  background: transparent;
+  color: #cbd5e1;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  background: #263449;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+button[aria-pressed="true"] {
+  background: #243b3b;
+  color: var(--accent);
+}
+
+/* MAIN STOPWATCH */
+
+#stage {
+  width: 100%;
+  height: 100%;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.heading {
+  position: absolute;
+  top: 30px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 4px;
+  pointer-events: none;
+}
+
+#time {
+  font-size: clamp(60px, 15vw, 180px);
+  font-weight: 650;
+  letter-spacing: -5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#status {
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 2px;
+  pointer-events: none;
+}
+
+#mainButton {
+  position: absolute;
+  bottom: 125px;
+  background: var(--accent);
+  color: #062018;
+  border-radius: 30px;
+  padding: 14px 35px;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+#mainButton:hover {
+  background: #8af2c9;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  cursor: default;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #111827dd;
+}
+
+.group-label {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 7px;
+}
+
+.hint {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: #64748b;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* SOUND SETTINGS OVERLAY */
+
+#settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #000a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+  cursor: default;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#settingsOverlay.open {
+  display: flex;
+}
+
+.settings {
+  width: min(440px, 100%);
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #111a29;
+  border: 1px solid #334155;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 80px #0009;
+  cursor: default;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.close-button {
+  font-size: 20px;
+  color: var(--muted);
+  padding: 9px 12px;
+}
+
+.setting {
+  margin-bottom: 25px;
+}
+
+.setting-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.setting-description {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 9px;
+  line-height: 1.6;
+}
+
+select {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 13px;
+  background: #0b1220;
+  color: white;
+  border: 1px solid #334155;
+  border-radius: 11px;
+  outline: none;
+  font-size: 14px;
+}
+
+input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin: 5px 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+#volumeValue {
+  color: var(--accent);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.volume-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.file-upload {
+  display: block;
+  width: 100%;
+  background: #0b1220;
+  border: 1px dashed #475569;
+  border-radius: 13px;
+  padding: 16px;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-upload > span:first-child {
+  display: block;
+  font-weight: 650;
+  margin-bottom: 9px;
+}
+
+.file-upload input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#fileName {
+  display: block;
+  color: var(--accent);
+  margin-top: 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.preview-button {
+  width: 100%;
+  min-height: 48px;
+  background: #243b3b;
+  color: var(--accent);
+  padding: 13px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.preview-button:hover {
+  background: #30504b;
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+#doneButton {
+  background: var(--accent);
+  color: #062018;
+  padding: 12px 27px;
+  border-radius: 11px;
+}
+
+/* MOBILE SETTINGS LAYOUT */
+
+@media (max-width: 600px) {
+
+  #time {
+    font-size: clamp(48px, 15vw, 100px);
+    letter-spacing: -3px;
+  }
+
+  .controls {
+    gap: 6px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .group {
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .group-label {
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
+  .controls button {
+    font-size: 11px;
+    padding: 9px 7px;
+  }
+
+  #mainButton {
+    bottom: calc(125px + env(safe-area-inset-bottom));
+  }
+
+  .hint {
+    top: auto;
+    bottom: calc(175px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    text-align: center;
+  }
+
+  /* Bottom-sheet settings panel */
+
+  #settingsOverlay {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .settings {
+    width: 100%;
+    max-height: 88dvh;
+    max-height: 88vh;
+    max-height: 88dvh;
+    padding: 22px 19px calc(22px + env(safe-area-inset-bottom));
+    border-radius: 23px 23px 0 0;
+    border-bottom: none;
+    overflow-x: hidden;
+  }
+
+  .settings-header {
+    margin-bottom: 25px;
+  }
+
+  .settings-header h2 {
+    font-size: 20px;
+  }
+
+  .setting {
+    margin-bottom: 26px;
+  }
+
+  .setting-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .setting-description {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  select {
+    min-height: 49px;
+    font-size: 16px;
+  }
+
+  input[type="range"] {
+    height: 34px;
+  }
+
+  .file-upload {
+    padding: 17px;
+  }
+
+  .file-upload input {
+    font-size: 13px;
+    min-height: 35px;
+  }
+
+  .preview-button {
+    min-height: 51px;
+  }
+
+  .settings-footer {
+    margin-top: 15px;
+  }
+
+  #doneButton {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+@media (max-height: 520px) {
+  .heading {
+    display: none;
+  }
+
+  #mainButton {
+    bottom: 85px;
+  }
+
+  .controls {
+    bottom: 8px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<main id="stage">
+
+  <div class="heading">STOPWATCH</div>
+
+  <div class="hint">
+    F Fullscreen · R Reset · Space Pause
+  </div>
+
+  <div id="time">00:00</div>
+  <div id="status">Ready</div>
+
+  <button id="mainButton">Start</button>
+
+  <div class="controls" id="controls">
+
+    <div class="group">
+      <span class="group-label">Precision</span>
+      <button data-precision="0" aria-pressed="true">No ms</button>
+      <button data-precision="1" aria-pressed="false">0.0</button>
+      <button data-precision="2" aria-pressed="false">0.00</button>
+      <button data-precision="3" aria-pressed="false">0.000</button>
+    </div>
+
+    <div class="group">
+      <span class="group-label">Sound</span>
+      <button id="soundButton" aria-pressed="false">Off</button>
+      <button id="settingsButton">⚙ Settings</button>
+    </div>
+
+    <div class="group">
+      <button id="resetButton">↺ Reset</button>
+      <button id="fullscreenButton">⛶ Fullscreen</button>
+    </div>
+
+  </div>
+
+</main>
+
+
+<!-- SOUND SETTINGS -->
+
+<div id="settingsOverlay">
+
+  <section class="settings" aria-label="Sound settings">
+
+    <div class="settings-header">
+      <h2>⚙ Sound Settings</h2>
+      <button class="close-button" id="closeSettings" aria-label="Close settings">✕</button>
+    </div>
+
+    <!-- VOLUME -->
+
+    <div class="setting">
+
+      <div class="setting-title">
+        <span>Sound volume</span>
+        <span id="volumeValue">100%</span>
+      </div>
+
+      <input
+        type="range"
+        id="volumeSlider"
+        min="0"
+        max="600"
+        value="100"
+        step="10"
+        aria-label="Sound volume"
+      >
+
+      <div class="volume-labels">
+        <span>0%</span>
+        <span>300%</span>
+        <span>600%</span>
+      </div>
+
+      <div class="setting-description">
+        100% is normal audio gain. 600% is six times
+        the audio signal gain. High settings can cause
+        distortion or be limited by your device.
+      </div>
+
+    </div>
+
+    <!-- SOUND TYPE -->
+
+    <div class="setting">
+
+      <div class="setting-title">
+        <span>Sound type</span>
+      </div>
+
+      <select id="soundType">
+        <option value="beep">Standard beep</option>
+        <option value="double">Double beep</option>
+        <option value="click">Click</option>
+        <option value="chime">Chime</option>
+        <option value="bell">Bell</option>
+        <option value="custom">Uploaded sound</option>
+      </select>
+
+      <div class="setting-description">
+        Choose which sound plays when the stopwatch
+        starts or pauses.
+      </div>
+
+    </div>
+
+    <!-- CUSTOM AUDIO -->
+
+    <div class="setting">
+
+      <div class="setting-title">
+        <span>Custom audio</span>
+      </div>
+
+      <label class="file-upload">
+
+        <span>Upload your own sound file</span>
+
+        <input
+          type="file"
+          id="audioUpload"
+          accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+        >
+
+        <span id="fileName">No file uploaded</span>
+
+      </label>
+
+      <div class="setting-description">
+        Supports formats your browser can play, including
+        MP3, WAV, OGG, M4A and AAC.
+      </div>
+
+    </div>
+
+    <!-- PREVIEW -->
+
+    <div class="setting">
+      <button class="preview-button" id="previewButton">
+        ▶ Preview Sound
+      </button>
+    </div>
+
+    <div class="settings-footer">
+      <button id="doneButton">Done</button>
+    </div>
+
+  </section>
+
+</div>
+
+
+<script>
+
+// ===================================
+// ELEMENTS
+// ===================================
+
+const stage = document.getElementById("stage");
+const display = document.getElementById("time");
+const status = document.getElementById("status");
+const mainButton = document.getElementById("mainButton");
+
+const soundButton = document.getElementById("soundButton");
+const settingsOverlay = document.getElementById("settingsOverlay");
+
+const volumeSlider = document.getElementById("volumeSlider");
+const volumeValue = document.getElementById("volumeValue");
+const soundTypeSelect = document.getElementById("soundType");
+const audioUpload = document.getElementById("audioUpload");
+const fileName = document.getElementById("fileName");
+
+
+// ===================================
+// STOPWATCH VARIABLES
+// ===================================
+
+let running = false;
+let elapsed = 0;
+let startedAt = 0;
+let precision = 0;
+let animation = null;
+
+
+// ===================================
+// SOUND VARIABLES
+// ===================================
+
+let soundOn = false;
+let volume = 100;
+let soundType = "beep";
+
+let audioContext = null;
+let masterGain = null;
+
+let uploadedFileURL = null;
+
+let customAudioElement = null;
+let customAudioSource = null;
+
+
+// ===================================
+// AUDIO ENGINE
+// ===================================
+
+// Create one shared audio engine.
+// The master gain controls all audio.
+
+function getAudioEngine() {
+
+  const AudioCtx =
+    window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioCtx) {
+    return null;
+  }
+
+  if (!audioContext) {
+
+    audioContext = new AudioCtx();
+
+    masterGain = audioContext.createGain();
+
+    masterGain.gain.value = volume / 100;
+
+    masterGain.connect(audioContext.destination);
+  }
+
+  return audioContext;
+}
+
+
+// Resume audio after a user interaction.
+//
+// Mobile browsers often suspend audio until the
+// user interacts with the page.
+
+function resumeAudio(ctx) {
+
+  if (!ctx) return Promise.reject(
+    new Error("Audio is unavailable")
+  );
+
+  if (ctx.state === "suspended") {
+    return ctx.resume();
+  }
+
+  return Promise.resolve();
+}
+
+
+// Update shared volume.
+
+function updateMasterVolume() {
+
+  if (!masterGain || !audioContext) return;
+
+  const now = audioContext.currentTime;
+
+  masterGain.gain.cancelScheduledValues(now);
+
+  masterGain.gain.setTargetAtTime(
+    volume / 100,
+    now,
+    0.015
+  );
+}
+
+
+// ===================================
+// BUILT-IN SOUNDS
+// ===================================
+
+function scheduleTone(
+  ctx,
+  frequency,
+  duration,
+  wave = "sine",
+  delay = 0
+) {
+
+  const oscillator = ctx.createOscillator();
+  const envelope = ctx.createGain();
+
+  oscillator.type = wave;
+  oscillator.frequency.value = frequency;
+
+  const startTime = ctx.currentTime + delay;
+
+  // Base signal level. The master volume slider
+  // multiplies this signal from 0 to 6.
+
+  const baseVolume = 0.22;
+
+  envelope.gain.setValueAtTime(0.0001, startTime);
+
+  envelope.gain.exponentialRampToValueAtTime(
+    baseVolume,
+    startTime + 0.012
+  );
+
+  envelope.gain.exponentialRampToValueAtTime(
+    0.0001,
+    startTime + duration
+  );
+
+  oscillator.connect(envelope);
+  envelope.connect(masterGain);
+
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration + 0.025);
+}
+
+
+async function playBuiltInSound() {
+
+  const ctx = getAudioEngine();
+
+  if (!ctx) {
+    status.textContent = "Audio is not supported";
+    return;
+  }
+
+  try {
+
+    // Resume first, then schedule sounds.
+    await resumeAudio(ctx);
+
+    switch (soundType) {
+
+      case "beep":
+        scheduleTone(ctx, 880, 0.16);
+        break;
+
+      case "double":
+        scheduleTone(ctx, 880, 0.12);
+        scheduleTone(ctx, 1100, 0.12, "sine", 0.19);
+        break;
+
+      case "click":
+        scheduleTone(ctx, 1400, 0.045, "square");
+        break;
+
+      case "chime":
+        scheduleTone(ctx, 660, 0.38);
+        scheduleTone(ctx, 880, 0.48, "sine", 0.13);
+        break;
+
+      case "bell":
+        scheduleTone(ctx, 1046, 0.45);
+        scheduleTone(ctx, 1318, 0.55, "sine", 0.09);
+        scheduleTone(ctx, 1568, 0.38, "sine", 0.18);
+        break;
+
+    }
+
+  } catch (error) {
+    status.textContent = "Tap to enable audio";
+  }
+}
+
+
+// ===================================
+// CUSTOM UPLOADED AUDIO
+// ===================================
+
+function prepareCustomAudio(ctx) {
+
+  if (!customAudioElement) {
+
+    customAudioElement = new Audio();
+
+    customAudioElement.preload = "auto";
+
+    // Route the uploaded audio through the same
+    // master gain as the built-in sounds.
+
+    customAudioSource =
+      ctx.createMediaElementSource(customAudioElement);
+
+    customAudioSource.connect(masterGain);
+  }
+
+}
+
+
+async function playCustomSound() {
+
+  if (!uploadedFileURL) {
+    fileName.textContent = "Upload a sound file first!";
+    return;
+  }
+
+  const ctx = getAudioEngine();
+
+  if (!ctx) {
+
+    // Fallback to ordinary HTML audio if Web Audio
+    // is unavailable. This fallback cannot amplify
+    // beyond the browser's normal 100% audio limit.
+
+    const fallback = new Audio(uploadedFileURL);
+
+    fallback.volume = Math.min(1, volume / 100);
+
+    fallback.play().catch(() => {
+      status.textContent = "Audio playback failed";
+    });
+
+    return;
+  }
+
+  try {
+
+    prepareCustomAudio(ctx);
+
+    if (customAudioElement.src !== uploadedFileURL) {
+      customAudioElement.src = uploadedFileURL;
+    }
+
+    // Call resume and play directly from the user's
+    // interaction so mobile browsers can authorize it.
+
+    const resumePromise = resumeAudio(ctx);
+
+    customAudioElement.pause();
+
+    try {
+      customAudioElement.currentTime = 0;
+    } catch (_) {}
+
+    const playPromise = customAudioElement.play();
+
+    await Promise.all([
+      resumePromise,
+      playPromise
+    ]);
+
+  } catch (error) {
+
+    status.textContent = "Could not play uploaded audio";
+
+  }
+}
+
+
+// ===================================
+// PLAY SELECTED SOUND
+// ===================================
+
+function playSelectedSound() {
+
+  if (volume === 0) return;
+
+  if (soundType === "custom") {
+    playCustomSound();
+  } else {
+    playBuiltInSound();
+  }
+
+}
+
+
+// Stopwatch sound function.
+// Preview does not require soundOn to be enabled.
+
+function playSound() {
+
+  if (!soundOn || volume === 0) return;
+
+  playSelectedSound();
+
+}
+
+
+// ===================================
+// SOUND VOLUME SLIDER
+// ===================================
+
+volumeSlider.addEventListener("input", () => {
+
+  volume = Number(volumeSlider.value);
+
+  volumeValue.textContent = volume + "%";
+
+  updateMasterVolume();
+
+});
+
+
+// ===================================
+// SOUND TYPE
+// ===================================
+
+soundTypeSelect.addEventListener("change", () => {
+
+  soundType = soundTypeSelect.value;
+
+});
+
+
+// ===================================
+// AUDIO UPLOAD
+// ===================================
+
+audioUpload.addEventListener("change", () => {
+
+  const file = audioUpload.files[0];
+
+  if (!file) return;
+
+  if (!file.type.startsWith("audio/")) {
+
+    fileName.textContent = "Please select an audio file.";
+
+    return;
+  }
+
+  // Release the previous uploaded file.
+
+  if (uploadedFileURL) {
+    URL.revokeObjectURL(uploadedFileURL);
+  }
+
+  uploadedFileURL = URL.createObjectURL(file);
+
+  fileName.textContent = file.name;
+
+  // Automatically select custom audio.
+
+  soundType = "custom";
+  soundTypeSelect.value = "custom";
+
+});
+
+
+// ===================================
+// PREVIEW BUTTON
+// ===================================
+
+document.getElementById("previewButton")
+.addEventListener("click", () => {
+
+  // Preview works even when stopwatch sound is Off.
+
+  if (volume === 0) {
+    fileName.textContent = "Volume is set to 0%.";
+    return;
+  }
+
+  if (soundType === "custom" && !uploadedFileURL) {
+    fileName.textContent = "Upload a sound first!";
+    return;
+  }
+
+  playSelectedSound();
+
+});
+
+
+// ===================================
+// SOUND ON / OFF
+// ===================================
+
+soundButton.addEventListener("click", () => {
+
+  soundOn = !soundOn;
+
+  soundButton.textContent = soundOn ? "On" : "Off";
+
+  soundButton.setAttribute(
+    "aria-pressed",
+    String(soundOn)
+  );
+
+  if (soundOn) {
+    playSound();
+  } else if (customAudioElement) {
+    customAudioElement.pause();
+  }
+
+});
+
+
+// ===================================
+// SETTINGS WINDOW
+// ===================================
+
+function openSettings() {
+  settingsOverlay.classList.add("open");
+}
+
+function closeSettings() {
+  settingsOverlay.classList.remove("open");
+}
+
+document.getElementById("settingsButton")
+.addEventListener("click", openSettings);
+
+document.getElementById("closeSettings")
+.addEventListener("click", closeSettings);
+
+document.getElementById("doneButton")
+.addEventListener("click", closeSettings);
+
+settingsOverlay.addEventListener("click", event => {
+
+  if (event.target === settingsOverlay) {
+    closeSettings();
+  }
+
+});
+
+
+// ===================================
+// STOPWATCH TIME
+// ===================================
+
+function getTime() {
+
+  return elapsed +
+    (running ? performance.now() - startedAt : 0);
+
+}
+
+
+function formatTime(ms) {
+
+  const total = ms / 1000;
+
+  const hours = Math.floor(total / 3600);
+
+  const minutes = Math.floor(
+    (total % 3600) / 60
+  );
+
+  const seconds = Math.floor(total % 60);
+
+  let result;
+
+  if (hours > 0) {
+
+    result =
+      String(hours).padStart(2, "0") + ":" +
+      String(minutes).padStart(2, "0") + ":" +
+      String(seconds).padStart(2, "0");
+
+  } else {
+
+    result =
+      String(Math.floor(total / 60)).padStart(2, "0") + ":" +
+      String(seconds).padStart(2, "0");
+
+  }
+
+  if (precision > 0) {
+
+    const fraction = Math.floor(
+      (ms % 1000) / (10 ** (3 - precision))
+    );
+
+    result += "." +
+      String(fraction).padStart(precision, "0");
+
+  }
+
+  return result;
+
+}
+
+
+// ===================================
+// DISPLAY UPDATE
+// ===================================
+
+function update() {
+
+  display.textContent = formatTime(getTime());
+
+  if (running) {
+    animation = requestAnimationFrame(update);
+  }
+
+}
+
+
+// ===================================
+// START
+// ===================================
+
+function start() {
+
+  if (running) return;
+
+  running = true;
+
+  startedAt = performance.now();
+
+  mainButton.textContent = "Pause";
+
+  status.textContent = "Running";
+
+  playSound();
+
+  cancelAnimationFrame(animation);
+
+  update();
+
+}
+
+
+// ===================================
+// PAUSE
+// ===================================
+
+function pause() {
+
+  if (!running) return;
+
+  elapsed = getTime();
+
+  running = false;
+
+  cancelAnimationFrame(animation);
+
+  display.textContent = formatTime(elapsed);
+
+  mainButton.textContent = "Start";
+
+  status.textContent = "Paused";
+
+  playSound();
+
+}
+
+
+// ===================================
+// TOGGLE
+// ===================================
+
+function toggle() {
+
+  running ? pause() : start();
+
+}
+
+
+// ===================================
+// RESET
+// ===================================
+
+function reset() {
+
+  running = false;
+
+  elapsed = 0;
+
+  startedAt = 0;
+
+  cancelAnimationFrame(animation);
+
+  display.textContent = formatTime(0);
+
+  mainButton.textContent = "Start";
+
+  status.textContent = "Ready";
+
+}
+
+
+// ===================================
+// FULLSCREEN
+// ===================================
+
+async function toggleFullscreen() {
+
+  try {
+
+    if (!document.fullscreenElement) {
+
+      await stage.requestFullscreen();
+
+    } else {
+
+      await document.exitFullscreen();
+
+    }
+
+  } catch (error) {
+
+    status.textContent = "Fullscreen unavailable";
+
+  }
+
+}
+
+
+// ===================================
+// CLICK CONTROLS
+// ===================================
+
+stage.addEventListener("click", event => {
+
+  if (
+    event.target.closest("#controls") ||
+    event.target.closest("#mainButton")
+  ) return;
+
+  toggle();
+
+});
+
+
+mainButton.addEventListener("click", event => {
+
+  event.stopPropagation();
+
+  toggle();
+
+});
+
+
+document.getElementById("resetButton")
+.addEventListener("click", reset);
+
+
+document.getElementById("fullscreenButton")
+.addEventListener("click", toggleFullscreen);
+
+
+// ===================================
+// PRECISION
+// ===================================
+
+document.querySelectorAll("[data-precision]")
+.forEach(button => {
+
+  button.addEventListener("click", () => {
+
+    precision = Number(button.dataset.precision);
+
+    document.querySelectorAll("[data-precision]")
+    .forEach(item => {
+
+      item.setAttribute(
+        "aria-pressed",
+        String(item === button)
+      );
+
+    });
+
+    display.textContent = formatTime(getTime());
+
+  });
+
+});
+
+
+// ===================================
+// KEYBOARD SHORTCUTS
+// ===================================
+
+document.addEventListener("keydown", event => {
+
+  if (
+    event.repeat ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey
+  ) return;
+
+  // Do not trigger stopwatch keyboard shortcuts
+  // while the settings panel is open.
+
+  if (settingsOverlay.classList.contains("open")) {
+
+    if (event.key === "Escape") {
+      closeSettings();
+    }
+
+    return;
+
+  }
+
+  if (event.key.toLowerCase() === "f") {
+
+    event.preventDefault();
+
+    toggleFullscreen();
+
+  }
+
+  if (event.key.toLowerCase() === "r") {
+
+    event.preventDefault();
+
+    reset();
+
+  }
+
+  if (event.code === "Space") {
+
+    event.preventDefault();
+
+    toggle();
+
+  }
+
+});
+
+
+// ===================================
+// FULLSCREEN LABEL
+// ===================================
+
+document.addEventListener("fullscreenchange", () => {
+
+  document.getElementById("fullscreenButton").textContent =
+    document.fullscreenElement
+      ? "⛶ Exit fullscreen"
+      : "⛶ Fullscreen";
+
+});
+
+
+// ===================================
+// INITIAL DISPLAY
+// ===================================
+
+display.textContent = formatTime(0);
+
+</script>
+
+</body>
+</html>
