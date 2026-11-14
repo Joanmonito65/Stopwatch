@@ -1,0 +1,4414 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="dark">
+
+<title>Fullscreen Stopwatch</title>
+
+<style>
+:root {
+  --bg: #080b12;
+  --accent: #65e6b4;
+  --muted: #94a3b8;
+  --panel: #111827;
+  --border: #263449;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  height: 100vh;
+  height: 100dvh;
+  color: white;
+  font-family: system-ui, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  background: radial-gradient(
+    ellipse at center,
+    #172235,
+    var(--bg) 70%
+  );
+}
+
+button, input, select {
+  font: inherit;
+}
+
+button {
+  background: transparent;
+  color: #cbd5e1;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+button:hover {
+  background: #263449;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+button[aria-pressed="true"] {
+  background: #243b3b;
+  color: var(--accent);
+}
+
+/* =================================
+   MAIN STAGE
+================================= */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100svh;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  background: radial-gradient(
+    ellipse at center,
+    #172235,
+    var(--bg) 70%
+  );
+
+  cursor: pointer;
+}
+
+#stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.heading {
+  position: absolute;
+  top: calc(25px + env(safe-area-inset-top));
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 4px;
+  pointer-events: none;
+}
+
+#time {
+  font-size: clamp(60px, 15vw, 180px);
+  font-weight: 650;
+  letter-spacing: -5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#status {
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 2px;
+  pointer-events: none;
+}
+
+.hint {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top));
+  right: 20px;
+  color: #64748b;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* =================================
+   MAIN BUTTON
+================================= */
+
+#mainButton {
+  position: absolute;
+  bottom: calc(125px + env(safe-area-inset-bottom));
+
+  background: var(--accent);
+  color: #062018;
+
+  border-radius: 30px;
+  padding: 14px 35px;
+
+  font-weight: bold;
+  font-size: 15px;
+}
+
+#mainButton:hover {
+  background: #8af2c9;
+}
+
+/* =================================
+   BOTTOM CONTROLS
+================================= */
+
+.controls {
+  position: absolute;
+  bottom: calc(15px + env(safe-area-inset-bottom));
+
+  left: 10px;
+  right: 10px;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+
+  cursor: default;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 7px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: #111827dd;
+}
+
+.group-label {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 7px;
+}
+
+#lapButton {
+  color: var(--accent);
+}
+
+/* =================================
+   LAP PANEL
+================================= */
+
+#lapsPanel {
+  position: absolute;
+
+  top: calc(60px + env(safe-area-inset-top));
+  left: 18px;
+
+  width: min(290px, calc(100% - 36px));
+  max-height: min(38vh, 330px);
+
+  display: flex;
+  flex-direction: column;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: #101827eF;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  overflow: hidden;
+  cursor: default;
+
+  z-index: 2;
+}
+
+.laps-header {
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 9px 12px;
+
+  border-bottom: 1px solid #263449;
+}
+
+.laps-title {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 1px;
+  color: #cbd5e1;
+}
+
+#lapCount {
+  color: var(--accent);
+  margin-left: 5px;
+}
+
+#clearLapsButton {
+  font-size: 10px;
+  padding: 6px 9px;
+  color: var(--muted);
+}
+
+#lapsList {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.empty-laps {
+  padding: 13px;
+  text-align: center;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.lap-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 1fr;
+  align-items: center;
+  gap: 5px;
+
+  padding: 9px 12px;
+
+  border-bottom: 1px solid #26344966;
+
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.lap-row:last-child {
+  border-bottom: 0;
+}
+
+.lap-number {
+  color: var(--muted);
+}
+
+.lap-split {
+  color: #94a3b8;
+  text-align: right;
+}
+
+.lap-total {
+  color: var(--accent);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* =================================
+   BLIND MODE
+================================= */
+
+/* Hide all elapsed-time information while leaving the controls usable. */
+#stage.blind-mode #time,
+#stage.blind-mode #status,
+#stage.blind-mode #lapsPanel {
+  visibility: hidden;
+}
+
+#stage.blind-mode::after {
+  content: "BLIND MODE";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #64748b;
+  font-size: clamp(18px, 4vw, 30px);
+  font-weight: 700;
+  letter-spacing: 5px;
+  pointer-events: none;
+}
+
+#blindButton {
+  color: #fbbf24;
+}
+
+#blindButton[aria-pressed="true"] {
+  background: #43351c;
+  color: #fcd34d;
+}
+
+/* =================================
+   SETTINGS OVERLAY
+================================= */
+
+#settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+
+  background: #000a;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  padding: 15px;
+
+  cursor: default;
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#settingsOverlay.open {
+  display: flex;
+}
+
+.settings {
+  width: min(470px, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+
+  background: #111a29;
+
+  border: 1px solid #334155;
+  border-radius: 20px;
+
+  padding: 24px;
+
+  box-shadow: 0 20px 80px #0009;
+
+  cursor: default;
+
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 25px;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.close-button {
+  font-size: 20px;
+  color: var(--muted);
+  padding: 8px 12px;
+}
+
+.setting {
+  margin-bottom: 25px;
+}
+
+.setting-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 11px;
+
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.setting-description {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 9px;
+  line-height: 1.6;
+}
+
+select {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+
+  padding: 11px 13px;
+
+  background: #0b1220;
+  color: white;
+
+  border: 1px solid #334155;
+  border-radius: 11px;
+
+  font-size: 14px;
+}
+
+input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 30px;
+
+  margin: 5px 0;
+
+  accent-color: var(--accent);
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+#volumeValue {
+  color: var(--accent);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.volume-labels {
+  display: flex;
+  justify-content: space-between;
+
+  color: #64748b;
+  font-size: 11px;
+}
+
+/* =================================
+   SOUND SETTINGS CARDS
+================================= */
+
+.sound-card {
+  background: #0c1524;
+  border: 1px solid #29384d;
+  border-radius: 14px;
+
+  padding: 15px;
+  margin-bottom: 17px;
+}
+
+.sound-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 13px;
+}
+
+.sound-card-header strong {
+  font-size: 14px;
+}
+
+.sound-badge {
+  font-size: 10px;
+  color: var(--accent);
+  background: #243b3b;
+  padding: 5px 8px;
+  border-radius: 20px;
+}
+
+.sound-card .setting-description {
+  margin-bottom: 12px;
+}
+
+.file-upload {
+  display: block;
+  width: 100%;
+
+  background: #0b1220;
+
+  border: 1px dashed #475569;
+  border-radius: 12px;
+
+  padding: 14px;
+
+  color: #cbd5e1;
+  font-size: 12px;
+
+  cursor: pointer;
+}
+
+.file-upload > span:first-child {
+  display: block;
+  font-weight: 650;
+  margin-bottom: 10px;
+}
+
+.file-upload input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.file-name {
+  display: block;
+
+  color: var(--accent);
+  margin-top: 10px;
+
+  font-size: 12px;
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+.preview-button {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+
+  margin-top: 12px;
+
+  background: #243b3b;
+  color: var(--accent);
+
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.preview-button:hover {
+  background: #30504b;
+}
+
+/* =================================
+   KEYBINDS
+================================= */
+
+.keybind-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.keybind-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.keybind-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+
+  text-align: center;
+  text-transform: uppercase;
+
+  background: #0b1220;
+  color: var(--accent);
+
+  border: 1px solid #334155;
+  border-radius: 10px;
+
+  font-size: 16px;
+  font-weight: 750;
+}
+
+#keybindMessage {
+  min-height: 18px;
+  margin-top: 10px;
+
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* =================================
+   DATA SAVING OPTION
+================================= */
+
+.save-setting {
+  padding: 14px;
+
+  background: #0c1524;
+
+  border: 1px solid #29384d;
+  border-radius: 13px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  cursor: pointer;
+
+  font-size: 13px;
+  font-weight: 650;
+  color: #cbd5e1;
+}
+
+.check-row input {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+
+  accent-color: var(--accent);
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+
+  margin-top: 12px;
+}
+
+#doneButton {
+  background: var(--accent);
+  color: #062018;
+
+  padding: 12px 27px;
+
+  border-radius: 11px;
+  font-weight: 750;
+}
+
+/* =================================
+   MOBILE
+================================= */
+
+@media (max-width: 600px) {
+
+  #time {
+    font-size: clamp(48px, 15vw, 100px);
+    letter-spacing: -3px;
+  }
+
+  .heading {
+    top: calc(15px + env(safe-area-inset-top));
+  }
+
+  .hint {
+    top: auto;
+    bottom: calc(180px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .controls {
+    left: 6px;
+    right: 6px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    gap: 5px;
+  }
+
+  .group {
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .group-label {
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
+  .controls button {
+    font-size: 11px;
+    padding: 9px 7px;
+  }
+
+  #mainButton {
+    bottom: calc(125px + env(safe-area-inset-bottom));
+  }
+
+  /* Laps remain visible without opening anything. */
+
+  #lapsPanel {
+    top: calc(43px + env(safe-area-inset-top));
+    left: 10px;
+    right: 10px;
+
+    width: auto;
+
+    max-height: 19dvh;
+    border-radius: 12px;
+  }
+
+  .laps-header {
+    padding: 7px 10px;
+  }
+
+  .lap-row {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+
+  .empty-laps {
+    padding: 9px;
+    font-size: 10px;
+  }
+
+  /* Mobile settings bottom sheet. */
+
+  #settingsOverlay {
+    align-items: flex-end;
+    justify-content: center;
+
+    padding: 0;
+  }
+
+  .settings {
+    width: 100%;
+
+    max-height: 88vh;
+    max-height: 88dvh;
+
+    padding: 21px 18px calc(22px + env(safe-area-inset-bottom));
+
+    border-radius: 23px 23px 0 0;
+    border-bottom: none;
+
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-header {
+    margin-bottom: 23px;
+  }
+
+  .settings-header h2 {
+    font-size: 20px;
+  }
+
+  .setting {
+    margin-bottom: 23px;
+  }
+
+  .setting-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .setting-description {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  select {
+    min-height: 49px;
+    font-size: 16px;
+  }
+
+  input[type="range"] {
+    height: 35px;
+  }
+
+  .file-upload {
+    padding: 15px;
+  }
+
+  .file-upload input {
+    min-height: 35px;
+    font-size: 12px;
+  }
+
+  .preview-button {
+    min-height: 49px;
+  }
+
+  .keybind-grid {
+    gap: 10px;
+  }
+
+  .keybind-field input {
+    min-height: 47px;
+    font-size: 16px;
+  }
+
+  #doneButton {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+/* Short landscape screens */
+
+@media (max-height: 520px) {
+
+  .heading {
+    display: none;
+  }
+
+  #mainButton {
+    bottom: 85px;
+  }
+
+  .controls {
+    bottom: 5px;
+  }
+
+  #lapsPanel {
+    max-height: 30vh;
+  }
+}
+
+
+
+/* =================================
+   DISPLAY UNITS, HIDE BUTTONS & TABS
+================================= */
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 14px;
+  padding: 14px;
+  background: #0c1524;
+  border: 1px solid #29384d;
+  border-radius: 13px;
+}
+
+.option-grid .check-row {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.option-grid .check-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.option-note {
+  min-height: 16px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#mainButton {
+  bottom: calc(145px + env(safe-area-inset-bottom));
+}
+
+.controls {
+  bottom: calc(57px + env(safe-area-inset-bottom));
+}
+
+#hideButtonsButton {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  min-width: 132px;
+  padding: 9px 17px;
+  border: 1px solid #36524f;
+  border-radius: 22px;
+  background: #132b2b;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+#hideButtonsButton:hover {
+  background: #1d3b39;
+}
+
+#hideButtonsButton[aria-pressed="true"] {
+  background: #43351c;
+  color: #fcd34d;
+  border-color: #80652b;
+}
+
+#stage.hide-buttons .group-label {
+  display: none;
+}
+
+#stage.hide-buttons .group.group-empty-in-hide {
+  display: none;
+}
+
+#stage.hide-buttons #controls.controls-empty-in-hide {
+  display: none;
+}
+
+.hide-mode-hidden {
+  display: none !important;
+}
+
+#lapsPanel.is-hidden {
+  display: none !important;
+}
+
+#tabsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #000b;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  cursor: default;
+}
+
+#tabsOverlay.open {
+  display: flex;
+}
+
+.tabs-dialog {
+  width: min(620px, 100%);
+  max-height: min(82vh, 700px);
+  max-height: min(82dvh, 700px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #334155;
+  border-radius: 19px;
+  background: #111a29;
+  box-shadow: 0 20px 80px #0009;
+  overscroll-behavior: contain;
+}
+
+.tabs-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tabs-dialog-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  min-height: 48px;
+  overflow-x: auto;
+  padding: 5px 5px 0;
+  border-bottom: 1px solid #334155;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.tab-item {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  max-width: 215px;
+  min-width: 82px;
+  overflow: hidden;
+  border: 1px solid #334155;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: #0b1220;
+}
+
+.tab-item.active {
+  background: #243b3b;
+  border-color: #42615c;
+}
+
+.tab-chip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 175px;
+  padding: 10px 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #94a3b8;
+  text-align: left;
+  font-size: 12px;
+}
+
+.tab-item.active .tab-chip {
+  color: var(--accent);
+}
+
+.tab-chip:hover {
+  background: #263449;
+}
+
+.tab-close {
+  flex: 0 0 27px;
+  width: 27px;
+  min-width: 27px;
+  padding: 0;
+  border-left: 1px solid #334155;
+  border-radius: 0 8px 0 0;
+  color: #94a3b8;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tab-close:hover:not(:disabled) {
+  color: #fecaca;
+  background: #542b38;
+}
+
+.tab-close:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+.tab-chip .tab-running-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 1px;
+}
+
+#newTabButton {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #36524f;
+  border-radius: 10px;
+  background: #132b2b;
+  color: var(--accent);
+  font-size: 21px;
+}
+
+.tabs-active-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#activeTabTime {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.tab-rename-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.tab-rename-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 45px;
+  padding: 10px 12px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #fff;
+}
+
+.tab-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.tab-action-row button {
+  padding: 10px 14px;
+  border: 1px solid #334155;
+  background: #172235;
+  font-size: 12px;
+}
+
+#deleteTabButton {
+  color: #fca5a5;
+  border-color: #713b45;
+}
+
+#deleteTabButton:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.tabs-description {
+  margin: 16px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tabs-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+#closeTabsButton {
+  min-width: 100px;
+  padding: 11px 20px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #062018;
+}
+
+@media (max-width: 600px) {
+  #mainButton {
+    bottom: calc(210px + env(safe-area-inset-bottom));
+  }
+
+  .controls {
+    bottom: calc(57px + env(safe-area-inset-bottom));
+  }
+
+  #hideButtonsButton {
+    bottom: calc(7px + env(safe-area-inset-bottom));
+  }
+
+  #tabsOverlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .tabs-dialog {
+    width: 100%;
+    max-height: 88vh;
+    max-height: 88dvh;
+    padding: 20px 17px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+    border-bottom: 0;
+  }
+
+  .tab-rename-row {
+    flex-wrap: wrap;
+  }
+
+  .tab-rename-row input {
+    flex-basis: 100%;
+  }
+}
+
+</style>
+</head>
+
+<body>
+
+<main id="stage">
+
+  <div class="heading" id="stopwatchHeading">STOPWATCH</div>
+
+  <div class="hint">
+    Shortcuts can be changed in Settings
+  </div>
+
+  <div id="time">00:00.0</div>
+
+  <div id="status">Ready</div>
+
+  <button id="mainButton" data-hideable="main">Start</button>
+
+
+  <!-- LAP HISTORY: ALWAYS VISIBLE -->
+
+  <section id="lapsPanel">
+
+    <div class="laps-header">
+
+      <div class="laps-title">
+        LAP TIMES
+        <span id="lapCount">0</span>
+      </div>
+
+      <button id="clearLapsButton" data-hideable="clearLaps">Clear laps</button>
+
+    </div>
+
+    <div id="lapsList">
+      <div class="empty-laps">No laps yet.</div>
+    </div>
+
+  </section>
+
+
+  <!-- MAIN CONTROLS -->
+
+  <div class="controls" id="controls">
+
+    <div class="group">
+
+      <span class="group-label">Precision</span>
+
+      <button data-precision="0" data-hideable="precision">No ms</button>
+      <button data-precision="1" data-hideable="precision" aria-pressed="true">0.0</button>
+      <button data-precision="2" data-hideable="precision">0.00</button>
+      <button data-precision="3" data-hideable="precision">0.000</button>
+
+    </div>
+
+
+    <div class="group">
+
+      <span class="group-label">Sound</span>
+
+      <button id="soundButton" data-hideable="sound" aria-pressed="false">
+        Off
+      </button>
+
+      <button id="settingsButton" data-hideable="settings">
+        ⚙ Settings
+      </button>
+
+      <button id="tabsButton" data-hideable="tabs" title="Open stopwatch tabs (T)">
+        ▤ Tabs
+      </button>
+
+    </div>
+
+
+    <div class="group">
+
+      <button id="lapButton" data-hideable="lap">
+        + Lap
+      </button>
+
+      <button id="blindButton" data-hideable="blind" aria-pressed="false" title="Toggle Blind Mode (B)">
+        Blind: Off
+      </button>
+
+      <button id="resetButton" data-hideable="reset">
+        ↺ Reset
+      </button>
+
+      <button id="fullscreenButton" data-hideable="fullscreen">
+        ⛶ Fullscreen
+      </button>
+
+    </div>
+
+  </div>
+
+  <button id="hideButtonsButton" aria-pressed="false" title="Hide buttons (H)">
+    Hide buttons
+  </button>
+
+
+  <!-- SETTINGS OVERLAY IS INSIDE THE FULLSCREEN STAGE -->
+
+  <div id="settingsOverlay">
+
+    <section class="settings" aria-label="Stopwatch settings">
+
+      <div class="settings-header">
+
+        <h2>⚙ Settings</h2>
+
+        <button
+          class="close-button"
+          id="closeSettings"
+          aria-label="Close settings"
+        >
+          ✕
+        </button>
+
+      </div>
+
+
+      <!-- SAVE DATA -->
+
+      <div class="setting save-setting">
+
+        <label class="check-row">
+
+          <input
+            type="checkbox"
+            id="saveDataToggle"
+            checked
+          >
+
+          Save settings and data between visits
+
+        </label>
+
+        <div class="setting-description">
+          Saves your settings, keybinds, stopwatch tabs,
+          lap history, stopwatch times and uploaded sounds. Turn this
+          off to remove saved data from this browser.
+        </div>
+
+      </div>
+
+
+      <div class="setting">
+        <div class="setting-title">
+          <span>Time display</span>
+        </div>
+        <div class="option-grid" id="timeUnitOptions">
+          <label class="check-row"><input type="checkbox" id="unitDays" checked> Days</label>
+          <label class="check-row"><input type="checkbox" id="unitHours" checked> Hours</label>
+          <label class="check-row"><input type="checkbox" id="unitMinutes" checked> Minutes</label>
+          <label class="check-row"><input type="checkbox" id="unitSeconds" checked> Seconds</label>
+          <label class="check-row"><input type="checkbox" id="unitMilliseconds" checked> Milliseconds</label>
+        </div>
+        <div class="option-note" id="timeUnitMessage">Choose which time units appear. Disabled units are folded into the next enabled unit.</div>
+      </div>
+
+
+      <div class="setting">
+        <div class="setting-title">
+          <span>Display and hidden controls</span>
+        </div>
+        <div class="save-setting">
+          <label class="check-row">
+            <input type="checkbox" id="showLapsToggle" checked>
+            Show lap section
+          </label>
+          <div class="setting-description">Turn this off to remove the lap panel from the stopwatch screen.</div>
+        </div>
+        <div class="setting-title" style="margin-top:17px">
+          <span>Buttons to keep visible in Hide Buttons mode</span>
+        </div>
+        <div class="option-grid" id="hideButtonOptions">
+          <label class="check-row"><input type="checkbox" data-hide-option="main"> Start / Pause</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="precision"> Precision</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="sound"> Sound</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="settings"> Settings</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="tabs"> Tabs</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="lap"> Lap</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="clearLaps"> Clear laps</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="blind"> Blind mode</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="reset"> Reset</label>
+          <label class="check-row"><input type="checkbox" data-hide-option="fullscreen"> Fullscreen</label>
+        </div>
+        <div class="setting-description">The Hide / Show buttons toggle always remains available. Select any other controls that should stay visible while the rest are hidden.</div>
+      </div>
+
+
+      <!-- VOLUME -->
+
+      <div class="setting">
+
+        <div class="setting-title">
+
+          <span>Master sound volume</span>
+
+          <span id="volumeValue">100%</span>
+
+        </div>
+
+        <input
+          type="range"
+          id="volumeSlider"
+          min="0"
+          max="600"
+          value="100"
+          step="10"
+        >
+
+        <div class="volume-labels">
+          <span>0%</span>
+          <span>300%</span>
+          <span>600%</span>
+        </div>
+
+        <div class="setting-description">
+          Controls both the start and pause sounds. Higher volume can cause distortion or may be limited by your device.
+          If Web Audio is unavailable, the browser's native audio player is used as a compatibility fallback.
+        </div>
+
+      </div>
+
+
+      <!-- START SOUND -->
+
+      <div class="setting">
+
+        <div class="setting-title">
+          <span>Sound effects</span>
+        </div>
+
+        <div class="sound-card">
+
+          <div class="sound-card-header">
+
+            <strong>Start sound</strong>
+
+            <span class="sound-badge">When starting</span>
+
+          </div>
+
+          <select id="startSoundType"></select>
+
+          <div class="setting-description">
+            This sound plays when you start the stopwatch.
+          </div>
+
+          <label class="file-upload">
+
+            <span>Upload start sound</span>
+
+            <input
+              type="file"
+              id="startAudioUpload"
+              accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+            >
+
+            <span class="file-name" id="startFileName">
+              No file uploaded
+            </span>
+
+          </label>
+
+          <button class="preview-button" id="previewStartButton">
+            ▶ Preview start sound
+          </button>
+
+        </div>
+
+
+        <!-- END / PAUSE SOUND -->
+
+        <div class="sound-card">
+
+          <div class="sound-card-header">
+
+            <strong>Pause / end sound</strong>
+
+            <span class="sound-badge">When pausing</span>
+
+          </div>
+
+          <select id="endSoundType"></select>
+
+          <div class="setting-description">
+            This sound plays when you pause the stopwatch.
+            It can be different from the start sound.
+          </div>
+
+          <label class="file-upload">
+
+            <span>Upload pause sound</span>
+
+            <input
+              type="file"
+              id="endAudioUpload"
+              accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+            >
+
+            <span class="file-name" id="endFileName">
+              No file uploaded
+            </span>
+
+          </label>
+
+          <button class="preview-button" id="previewEndButton">
+            ▶ Preview pause sound
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- KEYBINDS -->
+
+      <div class="setting">
+
+        <div class="setting-title">
+          <span>Keyboard shortcuts</span>
+        </div>
+
+        <div class="keybind-grid">
+
+          <label class="keybind-field">
+
+            Start / Pause
+
+            <input
+              type="text"
+              id="keyToggle"
+              maxlength="5"
+              value="Space"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+
+          <label class="keybind-field">
+
+            Reset
+
+            <input
+              type="text"
+              id="keyReset"
+              maxlength="5"
+              value="R"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+
+          <label class="keybind-field">
+
+            Fullscreen
+
+            <input
+              type="text"
+              id="keyFullscreen"
+              maxlength="5"
+              value="F"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+
+          <label class="keybind-field">
+
+            Lap
+
+            <input
+              type="text"
+              id="keyLap"
+              maxlength="5"
+              value="L"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+          <label class="keybind-field">
+
+            Blind Mode
+
+            <input
+              type="text"
+              id="keyBlind"
+              maxlength="5"
+              value="B"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+          <label class="keybind-field">
+            Hide / Show Buttons
+            <input type="text" id="keyHideButtons" maxlength="5" value="H" autocomplete="off" spellcheck="false">
+          </label>
+
+          <label class="keybind-field">
+            Open Tabs
+            <input type="text" id="keyTabs" maxlength="5" value="T" autocomplete="off" spellcheck="false">
+          </label>
+
+          <label class="keybind-field">
+            Open Settings
+            <input type="text" id="keySettings" maxlength="5" value="S" autocomplete="off" spellcheck="false">
+          </label>
+
+          <label class="keybind-field">
+
+            Precision — No ms
+
+            <input
+              type="text"
+              id="keyPrecision0"
+              maxlength="5"
+              value="1"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+          <label class="keybind-field">
+
+            Precision — 0.0
+
+            <input
+              type="text"
+              id="keyPrecision1"
+              maxlength="5"
+              value="2"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+          <label class="keybind-field">
+
+            Precision — 0.00
+
+            <input
+              type="text"
+              id="keyPrecision2"
+              maxlength="5"
+              value="3"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+          <label class="keybind-field">
+
+            Precision — 0.000
+
+            <input
+              type="text"
+              id="keyPrecision3"
+              maxlength="5"
+              value="4"
+              autocomplete="off"
+              spellcheck="false"
+            >
+
+          </label>
+
+        </div>
+
+        <div id="keybindMessage">
+          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S.
+        </div>
+
+      </div>
+
+
+      <div class="settings-footer">
+
+        <button id="doneButton">
+          Done
+        </button>
+
+      </div>
+
+    </section>
+
+  </div>
+
+  <div id="tabsOverlay" aria-label="Stopwatch tabs menu">
+    <section class="tabs-dialog" role="dialog" aria-modal="true" aria-labelledby="tabsTitle">
+      <div class="tabs-dialog-header">
+        <h2 id="tabsTitle">Stopwatch Tabs</h2>
+        <button class="close-button" id="closeTabsX" aria-label="Close tabs">✕</button>
+      </div>
+      <div class="tabs-bar" id="tabsBar">
+        <button id="newTabButton" title="Create a new stopwatch tab" aria-label="Create new tab">+</button>
+      </div>
+      <div class="tabs-active-info">
+        <span id="activeTabState">Active stopwatch</span>
+        <span id="activeTabTime">00:00.0</span>
+      </div>
+      <div class="tab-rename-row">
+        <input id="tabNameInput" type="text" maxlength="30" autocomplete="off" spellcheck="false" aria-label="Tab name">
+        <button id="renameTabButton">Rename tab</button>
+      </div>
+      <div class="tab-action-row">
+        <button id="deleteTabButton">Close this tab</button>
+      </div>
+      <p class="tabs-description">Each tab is an independent stopwatch with its own running state and lap history. Running stopwatches keep counting when you switch to another tab, and your tabs are saved in this browser.</p>
+      <div class="tabs-footer">
+        <button id="closeTabsButton">Done</button>
+      </div>
+    </section>
+  </div>
+
+</main>
+
+
+<script>
+
+// ============================================
+// SOUND OPTIONS
+// ============================================
+
+const SOUND_OPTIONS = [
+  ["beep", "Standard beep"],
+  ["double", "Double beep"],
+  ["click", "Click"],
+  ["chime", "Chime"],
+  ["bell", "Bell"],
+  ["soft", "Soft tone"],
+  ["pop", "Pop"],
+  ["ascending", "Ascending tones"],
+  ["descending", "Descending tones"],
+  ["woodblock", "Woodblock"],
+  ["digital", "Digital pulse"],
+  ["low", "Low tone"],
+  ["custom", "Uploaded sound"]
+];
+
+
+// Populate both sound selectors from the same list.
+
+const startSoundSelect = document.getElementById("startSoundType");
+const endSoundSelect = document.getElementById("endSoundType");
+
+function populateSoundOptions() {
+
+  for (const [value, label] of SOUND_OPTIONS) {
+
+    const startOption = document.createElement("option");
+    startOption.value = value;
+    startOption.textContent = label;
+
+    const endOption = document.createElement("option");
+    endOption.value = value;
+    endOption.textContent = label;
+
+    startSoundSelect.appendChild(startOption);
+    endSoundSelect.appendChild(endOption);
+
+  }
+
+}
+
+populateSoundOptions();
+
+
+// ============================================
+// ELEMENTS
+// ============================================
+
+const stage = document.getElementById("stage");
+const display = document.getElementById("time");
+const status = document.getElementById("status");
+const mainButton = document.getElementById("mainButton");
+
+const settingsOverlay = document.getElementById("settingsOverlay");
+
+const volumeSlider = document.getElementById("volumeSlider");
+const volumeValue = document.getElementById("volumeValue");
+
+const saveDataToggle = document.getElementById("saveDataToggle");
+
+const lapList = document.getElementById("lapsList");
+const lapCount = document.getElementById("lapCount");
+
+
+// ============================================
+// CONSTANTS AND DEFAULTS
+// ============================================
+
+const STORAGE_KEY = "fullscreen-stopwatch-v4";
+
+const DEFAULT_KEYBINDS = {
+  toggle: " ",
+  reset: "r",
+  fullscreen: "f",
+  lap: "l",
+  blind: "b",
+  hideButtons: "h",
+  tabs: "t",
+  settings: "s",
+  precision0: "1",
+  precision1: "2",
+  precision2: "3",
+  precision3: "4"
+};
+
+
+// ============================================
+// STOPWATCH STATE
+// ============================================
+
+let running = false;
+
+let elapsed = 0;
+let startedAt = 0;
+
+let precision = 1;
+
+let animation = null;
+
+let laps = [];
+let blindMode = false;
+
+
+// ============================================
+// SOUND STATE
+// ============================================
+
+let soundOn = false;
+
+let volume = 100;
+
+let startSoundType = "beep";
+let endSoundType = "beep";
+
+let uploadedBlobs = {
+  start: null,
+  end: null
+};
+
+let uploadedURLs = {
+  start: null,
+  end: null
+};
+
+let uploadedNames = {
+  start: "",
+  end: ""
+};
+
+let audioContext = null;
+let masterGain = null;
+
+let customPlayers = {
+  start: null,
+  end: null
+};
+
+
+// ============================================
+// KEYBIND STATE
+// ============================================
+
+let keybinds = { ...DEFAULT_KEYBINDS };
+
+
+// ============================================
+// SAVING STATE
+// ============================================
+
+let saveEnabled = true;
+
+let timeUnits = {
+  days: false,
+  hours: false,
+  minutes: true,
+  seconds: true,
+  milliseconds: true
+};
+
+let showLaps = true;
+
+let hideButtonsOptions = {
+  main: false,
+  precision: false,
+  sound: false,
+  settings: false,
+  tabs: false,
+  lap: false,
+  clearLaps: false,
+  blind: false,
+  reset: false,
+  fullscreen: false
+};
+
+let hideButtonsMode = false;
+
+let tabs = [];
+let activeTabId = null;
+let nextTabNumber = 2;
+
+
+// ============================================
+// TIME FORMATTING
+// ============================================
+
+function getTime() {
+
+  return elapsed +
+    (running ? performance.now() - startedAt : 0);
+
+}
+
+
+function formatTime(ms) {
+
+  ms = Math.max(0, Number(ms) || 0);
+
+  const definitions = [
+    { key: "days", size: 86400000 },
+    { key: "hours", size: 3600000 },
+    { key: "minutes", size: 60000 },
+    { key: "seconds", size: 1000 },
+    { key: "milliseconds", size: 1 }
+  ];
+
+  const selected = definitions.filter(unit =>
+    timeUnits[unit.key] &&
+    (unit.key !== "milliseconds" || precision > 0)
+  );
+
+  if (selected.length === 0) return "0";
+
+  const parts = selected.map((unit, index) => {
+    const previous = index > 0 ? selected[index - 1] : null;
+    const remainder = previous ? ms % previous.size : ms;
+
+    if (unit.key === "milliseconds") {
+      const isFractionalSecond = previous && previous.key === "seconds";
+      const scale = isFractionalSecond ? 10 ** (3 - precision) : 1;
+      const value = Math.floor(remainder / scale);
+      const width = isFractionalSecond
+        ? precision
+        : previous
+          ? Math.ceil(Math.log10(previous.size))
+          : 1;
+      return {
+        value: String(value).padStart(width, "0"),
+        separator: isFractionalSecond ? "." : ":"
+      };
+    }
+
+    const value = previous
+      ? Math.floor(remainder / unit.size)
+      : Math.floor(ms / unit.size);
+
+    return {
+      value: String(value).padStart(2, "0"),
+      separator: ":"
+    };
+  });
+
+  return parts.map((part, index) =>
+    (index === 0 ? "" : part.separator) + part.value
+  ).join("");
+}
+
+
+function getTabById(id) {
+  return tabs.find(tab => tab.id === id) || null;
+}
+
+
+function getTabTime(tab) {
+  if (!tab) return 0;
+  if (tab.id === activeTabId) return getTime();
+
+  const base = Math.max(0, Number(tab.elapsed) || 0);
+  if (!tab.running) return base;
+
+  const savedAt = Number(tab.savedAt) || Date.now();
+  return base + Math.max(0, Date.now() - savedAt);
+}
+
+
+function saveActiveTabState() {
+  const tab = getTabById(activeTabId);
+  if (!tab) return;
+
+  tab.elapsed = getTime();
+  tab.running = Boolean(running);
+  tab.savedAt = Date.now();
+  tab.laps = laps.map(lap => ({ ...lap }));
+}
+
+
+function loadTabState(tab) {
+  if (!tab) return;
+
+  let restoredElapsed = Math.max(0, Number(tab.elapsed) || 0);
+  const restoredRunning = Boolean(tab.running);
+
+  if (restoredRunning) {
+    const savedAt = Number(tab.savedAt) || Date.now();
+    restoredElapsed += Math.max(0, Date.now() - savedAt);
+  }
+
+  tab.elapsed = restoredElapsed;
+  tab.running = restoredRunning;
+  tab.savedAt = Date.now();
+
+  elapsed = restoredElapsed;
+  running = restoredRunning;
+  startedAt = running ? performance.now() : 0;
+  laps = Array.isArray(tab.laps)
+    ? tab.laps.map(lap => ({ ...lap }))
+    : [];
+}
+
+
+function getNextAvailableTabNumber() {
+  // Reuse the lowest missing default tab number instead of keeping a
+  // permanently increasing counter. Custom names do not reserve a number,
+  // but a renamed tab such as "Tab 2" does.
+  const usedNumbers = new Set();
+
+  for (const tab of tabs) {
+    const match = String(tab.name || "").trim().match(/^Tab\s+(\d+)$/i);
+    if (match) {
+      const number = Number(match[1]);
+      if (Number.isSafeInteger(number) && number > 0) {
+        usedNumbers.add(number);
+      }
+    }
+  }
+
+  let number = 1;
+  while (usedNumbers.has(number)) number++;
+  return number;
+}
+
+function createTabRecord(name) {
+  const number = name ? null : getNextAvailableTabNumber();
+  const tabName = name || "Tab " + number;
+  let id = "tab-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+
+  // Guard against an extremely unlikely generated ID collision.
+  while (tabs.some(tab => tab.id === id)) {
+    id = "tab-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+  }
+
+  return {
+    id,
+    name: tabName,
+    elapsed: 0,
+    running: false,
+    savedAt: Date.now(),
+    laps: []
+  };
+}
+
+
+function updateStopwatchHeading() {
+  const active = getTabById(activeTabId);
+  const name = active ? active.name : "STOPWATCH";
+  const heading = document.getElementById("stopwatchHeading");
+  if (heading) heading.textContent = name.toUpperCase();
+  document.title = name + " — Stopwatch";
+}
+
+
+
+// ============================================
+// LAP HISTORY
+// ============================================
+
+function renderLaps() {
+
+  lapList.replaceChildren();
+
+  lapCount.textContent = laps.length;
+
+  if (laps.length === 0) {
+
+    const empty = document.createElement("div");
+
+    empty.className = "empty-laps";
+    empty.textContent = "No laps yet.";
+
+    lapList.appendChild(empty);
+
+    return;
+
+  }
+
+  // Show newest laps first.
+
+  const visibleLaps = [...laps].reverse();
+
+  for (const lap of visibleLaps) {
+
+    const row = document.createElement("div");
+
+    row.className = "lap-row";
+
+    const number = document.createElement("span");
+    number.className = "lap-number";
+    number.textContent = "Lap " + lap.number;
+
+    const split = document.createElement("span");
+    split.className = "lap-split";
+    split.textContent = "Split " + formatTime(lap.splitMs);
+
+    const total = document.createElement("span");
+    total.className = "lap-total";
+    total.textContent = formatTime(lap.totalMs);
+
+    row.append(number, split, total);
+
+    lapList.appendChild(row);
+
+  }
+
+}
+
+
+function recordLap() {
+
+  const total = getTime();
+
+  if (total <= 0) {
+
+    status.textContent = "Start the stopwatch first";
+
+    return;
+
+  }
+
+  const previousTotal = laps.length
+    ? laps[laps.length - 1].totalMs
+    : 0;
+
+  const split = Math.max(0, total - previousTotal);
+
+  const lap = {
+    number: laps.length + 1,
+    totalMs: total,
+    splitMs: split
+  };
+
+  laps.push(lap);
+
+  renderLaps();
+
+  persistData();
+
+}
+
+
+function clearLaps() {
+
+  if (laps.length === 0) return;
+
+  if (!confirm("Clear all lap times?")) return;
+
+  laps = [];
+
+  renderLaps();
+
+  persistData();
+
+}
+
+
+document.getElementById("lapButton")
+.addEventListener("click", recordLap);
+
+
+document.getElementById("clearLapsButton")
+.addEventListener("click", clearLaps);
+
+
+// ============================================
+// INDEXEDDB AUDIO STORAGE
+// ============================================
+
+// Uploaded audio files are stored as Blobs in
+// IndexedDB. Object URLs alone do not survive reloads.
+
+const AUDIO_DB_NAME = "fullscreen-stopwatch-audio";
+const AUDIO_STORE_NAME = "sounds";
+
+let audioDBPromise = null;
+
+
+function openAudioDB() {
+
+  if (!("indexedDB" in window)) {
+
+    return Promise.reject(
+      new Error("IndexedDB is unavailable")
+    );
+
+  }
+
+  if (audioDBPromise) {
+    return audioDBPromise;
+  }
+
+  audioDBPromise = new Promise((resolve, reject) => {
+
+    const request = indexedDB.open(AUDIO_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(AUDIO_STORE_NAME)) {
+
+        db.createObjectStore(AUDIO_STORE_NAME);
+
+      }
+
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+
+  });
+
+  return audioDBPromise;
+
+}
+
+
+async function storeAudioFile(slot, file) {
+
+  const db = await openAudioDB();
+
+  return new Promise((resolve, reject) => {
+
+    const transaction = db.transaction(
+      AUDIO_STORE_NAME,
+      "readwrite"
+    );
+
+    transaction.objectStore(AUDIO_STORE_NAME).put(
+      {
+        blob: file,
+        name: file.name,
+        type: file.type
+      },
+      slot
+    );
+
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+
+  });
+
+}
+
+
+async function getStoredAudioFile(slot) {
+
+  const db = await openAudioDB();
+
+  return new Promise((resolve, reject) => {
+
+    const transaction = db.transaction(
+      AUDIO_STORE_NAME,
+      "readonly"
+    );
+
+    const request = transaction
+      .objectStore(AUDIO_STORE_NAME)
+      .get(slot);
+
+    request.onsuccess = () => {
+      resolve(request.result || null);
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+
+  });
+
+}
+
+
+async function clearStoredAudioFiles() {
+
+  try {
+
+    const db = await openAudioDB();
+
+    return new Promise((resolve, reject) => {
+
+      const transaction = db.transaction(
+        AUDIO_STORE_NAME,
+        "readwrite"
+      );
+
+      transaction.objectStore(AUDIO_STORE_NAME).clear();
+
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+
+    });
+
+  } catch (error) {
+
+    // If IndexedDB is unavailable, there is nothing
+    // persistent to clear.
+
+  }
+
+}
+
+
+// ============================================
+// AUDIO ENGINE
+// ============================================
+
+// Web Audio is used for high-quality synthesized tones and volume boost.
+// A native HTMLAudio fallback is provided for browsers (notably some
+// mobile Safari versions) where Web Audio cannot start or connect audio.
+
+let audioContextUnavailable = false;
+const fallbackAudioPlayers = Object.create(null);
+const fallbackSoundURLs = Object.create(null);
+
+function getAudioEngine() {
+  if (audioContextUnavailable) return null;
+
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) {
+    audioContextUnavailable = true;
+    return null;
+  }
+
+  try {
+    if (!audioContext || audioContext.state === 'closed') {
+      audioContext = new AudioCtx();
+      masterGain = audioContext.createGain();
+      masterGain.gain.value = Math.max(0, volume / 100);
+      masterGain.connect(audioContext.destination);
+    }
+    return audioContext;
+  } catch (error) {
+    audioContextUnavailable = true;
+    audioContext = null;
+    masterGain = null;
+    return null;
+  }
+}
+
+async function resumeAudio(ctx) {
+  if (!ctx) throw new Error('Web Audio is unavailable');
+
+  if (ctx.state !== 'running') {
+    await ctx.resume();
+  }
+
+  if (ctx.state !== 'running') {
+    throw new Error('Audio context did not enter the running state');
+  }
+}
+
+function updateMasterVolume() {
+  if (!masterGain || !audioContext || audioContext.state === 'closed') return;
+
+  const now = audioContext.currentTime;
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setTargetAtTime(Math.max(0, volume / 100), now, 0.015);
+}
+
+
+// ============================================
+// BUILT-IN SOUND SYNTHESIS
+// ============================================
+
+function scheduleTone(
+  ctx,
+  frequency,
+  duration,
+  wave = 'sine',
+  delay = 0,
+  endFrequency = null
+) {
+  if (!ctx || !masterGain) throw new Error('Audio output is unavailable');
+
+  const oscillator = ctx.createOscillator();
+  const envelope = ctx.createGain();
+  const startTime = ctx.currentTime + delay;
+
+  oscillator.type = wave;
+  oscillator.frequency.setValueAtTime(frequency, startTime);
+
+  if (endFrequency) {
+    oscillator.frequency.exponentialRampToValueAtTime(
+      endFrequency,
+      startTime + duration
+    );
+  }
+
+  envelope.gain.setValueAtTime(0.0001, startTime);
+  envelope.gain.exponentialRampToValueAtTime(0.22, startTime + 0.012);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  oscillator.connect(envelope);
+  envelope.connect(masterGain);
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration + 0.03);
+}
+
+const FALLBACK_SOUND_RECIPES = {
+  beep:       [[880, 0.16, 'sine', 0, null]],
+  double:     [[880, 0.12, 'sine', 0, null], [1100, 0.12, 'sine', 0.19, null]],
+  click:      [[1400, 0.055, 'square', 0, null]],
+  chime:      [[660, 0.38, 'sine', 0, null], [880, 0.48, 'sine', 0.13, null]],
+  bell:       [[1046, 0.45, 'sine', 0, null], [1318, 0.55, 'sine', 0.09, null], [1568, 0.38, 'sine', 0.18, null]],
+  soft:       [[523, 0.24, 'triangle', 0, null]],
+  pop:        [[720, 0.16, 'sine', 0, 330]],
+  ascending:  [[523, 0.16, 'sine', 0, null], [659, 0.16, 'sine', 0.17, null], [784, 0.22, 'sine', 0.34, null]],
+  descending: [[784, 0.16, 'sine', 0, null], [659, 0.16, 'sine', 0.17, null], [523, 0.22, 'sine', 0.34, null]],
+  woodblock:  [[680, 0.055, 'square', 0, null], [510, 0.065, 'square', 0.07, null]],
+  digital:    [[1000, 0.065, 'square', 0, null], [700, 0.08, 'square', 0.11, null]],
+  low:        [[220, 0.25, 'triangle', 0, null]]
+};
+
+function createFallbackWavURL(type) {
+  if (fallbackSoundURLs[type]) return fallbackSoundURLs[type];
+
+  const recipe = FALLBACK_SOUND_RECIPES[type] || FALLBACK_SOUND_RECIPES.beep;
+  const sampleRate = 22050;
+  const duration = Math.max(...recipe.map(tone => tone[3] + tone[1])) + 0.06;
+  const sampleCount = Math.ceil(sampleRate * duration);
+  const bytesPerSample = 2;
+  const buffer = new ArrayBuffer(44 + sampleCount * bytesPerSample);
+  const view = new DataView(buffer);
+
+  function writeText(offset, value) {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  }
+
+  writeText(0, 'RIFF');
+  view.setUint32(4, 36 + sampleCount * bytesPerSample, true);
+  writeText(8, 'WAVE');
+  writeText(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeText(36, 'data');
+  view.setUint32(40, sampleCount * bytesPerSample, true);
+
+  for (let i = 0; i < sampleCount; i++) {
+    const time = i / sampleRate;
+    let sample = 0;
+
+    for (const [frequency, toneDuration, wave, delay, endFrequency] of recipe) {
+      const localTime = time - delay;
+      if (localTime < 0 || localTime >= toneDuration) continue;
+
+      const finalFrequency = endFrequency || frequency;
+      const phase = 2 * Math.PI * (
+        frequency * localTime +
+        ((finalFrequency - frequency) * localTime * localTime) / (2 * toneDuration)
+      );
+      const sine = Math.sin(phase);
+      let signal = sine;
+
+      if (wave === 'square') signal = sine >= 0 ? 1 : -1;
+      if (wave === 'triangle') signal = (2 / Math.PI) * Math.asin(sine);
+
+      const attack = Math.min(1, localTime / 0.008);
+      const release = Math.min(1, (toneDuration - localTime) / 0.035);
+      sample += signal * attack * release * 0.24;
+    }
+
+    sample = Math.max(-1, Math.min(1, sample));
+    view.setInt16(44 + i * bytesPerSample, Math.round(sample * 32767), true);
+  }
+
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  fallbackSoundURLs[type] = url;
+  return url;
+}
+
+function playFallbackAudio(url, playerKey) {
+  if (!url || volume <= 0) return Promise.resolve(false);
+
+  try {
+    let player = fallbackAudioPlayers[playerKey];
+    if (!player) {
+      player = new Audio();
+      player.preload = 'auto';
+      fallbackAudioPlayers[playerKey] = player;
+    }
+
+    if (player.src !== url) player.src = url;
+    player.volume = Math.max(0, Math.min(1, volume / 100));
+
+    try { player.pause(); } catch (_) {}
+    try { player.currentTime = 0; } catch (_) {}
+
+    const result = player.play();
+    if (result && typeof result.then === 'function') {
+      return result.then(() => true).catch(error => {
+        status.textContent = 'Tap the sound button to enable audio';
+        return false;
+      });
+    }
+    return Promise.resolve(true);
+  } catch (error) {
+    status.textContent = 'Audio playback is unavailable in this browser';
+    return Promise.resolve(false);
+  }
+}
+
+function playSoundRecipe(ctx, type) {
+  switch (type) {
+    case 'beep':       scheduleTone(ctx, 880, 0.16); break;
+    case 'double':     scheduleTone(ctx, 880, 0.12); scheduleTone(ctx, 1100, 0.12, 'sine', 0.19); break;
+    case 'click':      scheduleTone(ctx, 1400, 0.045, 'square'); break;
+    case 'chime':      scheduleTone(ctx, 660, 0.38); scheduleTone(ctx, 880, 0.48, 'sine', 0.13); break;
+    case 'bell':       scheduleTone(ctx, 1046, 0.45); scheduleTone(ctx, 1318, 0.55, 'sine', 0.09); scheduleTone(ctx, 1568, 0.38, 'sine', 0.18); break;
+    case 'soft':       scheduleTone(ctx, 523, 0.24, 'triangle'); break;
+    case 'pop':        scheduleTone(ctx, 720, 0.16, 'sine', 0, 330); break;
+    case 'ascending':  scheduleTone(ctx, 523, 0.16); scheduleTone(ctx, 659, 0.16, 'sine', 0.17); scheduleTone(ctx, 784, 0.22, 'sine', 0.34); break;
+    case 'descending': scheduleTone(ctx, 784, 0.16); scheduleTone(ctx, 659, 0.16, 'sine', 0.17); scheduleTone(ctx, 523, 0.22, 'sine', 0.34); break;
+    case 'woodblock':  scheduleTone(ctx, 680, 0.045, 'square'); scheduleTone(ctx, 510, 0.055, 'square', 0.07); break;
+    case 'digital':    scheduleTone(ctx, 1000, 0.055, 'square'); scheduleTone(ctx, 700, 0.07, 'square', 0.11); break;
+    case 'low':        scheduleTone(ctx, 220, 0.25, 'triangle'); break;
+    default:           scheduleTone(ctx, 880, 0.16); break;
+  }
+}
+
+async function playBuiltInSound(type) {
+  if (volume <= 0) return;
+
+  try {
+    const ctx = getAudioEngine();
+    if (!ctx) throw new Error('Web Audio unavailable');
+    await resumeAudio(ctx);
+    playSoundRecipe(ctx, type);
+  } catch (error) {
+    // Native audio is more compatible with browsers that restrict Web Audio.
+    const fallbackURL = createFallbackWavURL(type);
+    await playFallbackAudio(fallbackURL, 'builtin-' + type);
+  }
+}
+
+
+// ============================================
+// CUSTOM AUDIO PLAYERS
+// ============================================
+
+function getCustomPlayer(slot, ctx) {
+  if (customPlayers[slot]) return customPlayers[slot];
+
+  const audio = new Audio();
+  audio.preload = 'auto';
+  const source = ctx.createMediaElementSource(audio);
+  source.connect(masterGain);
+
+  customPlayers[slot] = { audio, source, url: null };
+  return customPlayers[slot];
+}
+
+async function playCustomSound(slot) {
+  const url = uploadedURLs[slot];
+  const fileLabel = document.getElementById(
+    slot === 'start' ? 'startFileName' : 'endFileName'
+  );
+
+  if (!url) {
+    fileLabel.textContent = uploadedNames[slot]
+      ? uploadedNames[slot] + ' (upload again to restore)'
+      : 'Upload an audio file first.';
+    return;
+  }
+
+  if (volume <= 0) return;
+
+  try {
+    const ctx = getAudioEngine();
+    if (!ctx) throw new Error('Web Audio unavailable');
+
+    const player = getCustomPlayer(slot, ctx);
+    if (player.url !== url) {
+      player.audio.src = url;
+      player.url = url;
+    }
+
+    const resumePromise = resumeAudio(ctx);
+    player.audio.pause();
+    try { player.audio.currentTime = 0; } catch (_) {}
+    const playPromise = player.audio.play();
+    await Promise.all([resumePromise, playPromise]);
+  } catch (error) {
+    // If a browser rejects MediaElementAudioSource or Web Audio playback,
+    // retry the same uploaded file through native HTMLAudio playback.
+    const existing = customPlayers[slot];
+    if (existing) {
+      try { existing.audio.pause(); } catch (_) {}
+    }
+    await playFallbackAudio(url, 'custom-' + slot);
+  }
+}
+
+
+// ============================================
+// PLAY A CONFIGURED SOUND
+// ============================================
+
+function playConfiguredSound(slot) {
+  if (volume <= 0) return;
+
+  const type = slot === 'start' ? startSoundType : endSoundType;
+  if (type === 'custom') {
+    playCustomSound(slot);
+  } else {
+    playBuiltInSound(type);
+  }
+}
+
+function playStopwatchSound(slot) {
+  if (!soundOn) return;
+  playConfiguredSound(slot);
+}
+
+function stopCustomPlayers() {
+  for (const slot of ['start', 'end']) {
+    const player = customPlayers[slot];
+    if (player) {
+      try { player.audio.pause(); player.audio.currentTime = 0; } catch (_) {}
+    }
+
+    const fallbackCustom = fallbackAudioPlayers['custom-' + slot];
+    if (fallbackCustom) {
+      try { fallbackCustom.pause(); fallbackCustom.currentTime = 0; } catch (_) {}
+    }
+  }
+
+  for (const [key, player] of Object.entries(fallbackAudioPlayers)) {
+    if (key.startsWith('builtin-')) {
+      try { player.pause(); player.currentTime = 0; } catch (_) {}
+    }
+  }
+}
+
+
+// ============================================
+// VOLUME CONTROL
+// ============================================
+
+volumeSlider.addEventListener("input", () => {
+
+  volume = Number(volumeSlider.value);
+
+  volumeValue.textContent = volume + "%";
+
+  updateMasterVolume();
+
+  persistData();
+
+});
+
+
+// ============================================
+// SOUND SELECTORS
+// ============================================
+
+startSoundSelect.addEventListener("change", () => {
+
+  startSoundType = startSoundSelect.value;
+
+  persistData();
+
+});
+
+
+endSoundSelect.addEventListener("change", () => {
+
+  endSoundType = endSoundSelect.value;
+
+  persistData();
+
+});
+
+
+// ============================================
+// UPLOADED AUDIO
+// ============================================
+
+function setUploadedAudio(slot, file) {
+
+  if (!file) return;
+
+  if (!file.type.startsWith("audio/")) {
+
+    document.getElementById(
+      slot === "start" ? "startFileName" : "endFileName"
+    ).textContent = "Please select an audio file.";
+
+    return;
+
+  }
+
+  if (uploadedURLs[slot]) {
+
+    URL.revokeObjectURL(uploadedURLs[slot]);
+
+  }
+
+  uploadedBlobs[slot] = file;
+
+  uploadedURLs[slot] = URL.createObjectURL(file);
+
+  uploadedNames[slot] = file.name;
+
+  const fileLabel = document.getElementById(
+    slot === "start" ? "startFileName" : "endFileName"
+  );
+
+  fileLabel.textContent = file.name;
+
+  // Automatically select uploaded audio for this event.
+
+  if (slot === "start") {
+
+    startSoundType = "custom";
+    startSoundSelect.value = "custom";
+
+  } else {
+
+    endSoundType = "custom";
+    endSoundSelect.value = "custom";
+
+  }
+
+  persistData();
+
+  // Save the actual file to IndexedDB.
+
+  if (saveEnabled) {
+
+    storeAudioFile(slot, file)
+      .then(() => persistData())
+      .catch(() => {
+
+        fileLabel.textContent =
+          file.name + " (available for this session only)";
+
+      });
+
+  }
+
+}
+
+
+document.getElementById("startAudioUpload")
+.addEventListener("change", event => {
+
+  setUploadedAudio("start", event.target.files[0]);
+
+});
+
+
+document.getElementById("endAudioUpload")
+.addEventListener("change", event => {
+
+  setUploadedAudio("end", event.target.files[0]);
+
+});
+
+
+// ============================================
+// PREVIEW BUTTONS
+// ============================================
+
+document.getElementById("previewStartButton")
+.addEventListener("click", () => {
+  playConfiguredSound("start");
+});
+
+
+document.getElementById("previewEndButton")
+.addEventListener("click", () => {
+  playConfiguredSound("end");
+});
+
+
+// ============================================
+// SOUND ON / OFF
+// ============================================
+
+const soundButton = document.getElementById("soundButton");
+
+soundButton.addEventListener("click", () => {
+
+  soundOn = !soundOn;
+
+  soundButton.textContent = soundOn ? "On" : "Off";
+
+  soundButton.setAttribute(
+    "aria-pressed",
+    String(soundOn)
+  );
+  soundButton.title = soundOn ? "Turn sound off" : "Turn sound on";
+
+  if (soundOn) {
+
+    playConfiguredSound("start");
+
+  } else {
+
+    stopCustomPlayers();
+
+  }
+
+  persistData();
+
+});
+
+
+// ============================================
+// KEYBIND HELPERS
+// ============================================
+
+const KEYBIND_FIELDS = {
+  toggle: document.getElementById("keyToggle"),
+  reset: document.getElementById("keyReset"),
+  fullscreen: document.getElementById("keyFullscreen"),
+  lap: document.getElementById("keyLap"),
+  blind: document.getElementById("keyBlind"),
+  hideButtons: document.getElementById("keyHideButtons"),
+  tabs: document.getElementById("keyTabs"),
+  settings: document.getElementById("keySettings"),
+  precision0: document.getElementById("keyPrecision0"),
+  precision1: document.getElementById("keyPrecision1"),
+  precision2: document.getElementById("keyPrecision2"),
+  precision3: document.getElementById("keyPrecision3")
+};
+
+
+const keybindMessage = document.getElementById("keybindMessage");
+
+
+function normalizeKey(value) {
+
+  // The Start / Pause shortcut is stored as a literal single space.
+  // Check it before trim(), because trim() would turn it into an empty string.
+  const raw = String(value);
+
+  if (raw === " " || raw.trim().toLowerCase() === "space") {
+    return " ";
+  }
+
+  const text = raw.trim().toLowerCase();
+
+  if (/^[a-z0-9]$/.test(text)) {
+    return text;
+  }
+
+  return null;
+
+}
+
+
+function displayKey(value) {
+
+  return value === " "
+    ? "Space"
+    : value.toUpperCase();
+
+}
+
+
+function updateKeybindFields() {
+
+  for (const [action, input] of Object.entries(KEYBIND_FIELDS)) {
+
+    input.value = displayKey(keybinds[action]);
+
+  }
+
+}
+
+
+function validateKeybinds(candidate) {
+
+  const values = Object.values(candidate);
+
+  if (values.some(value => value === null)) {
+    return false;
+  }
+
+  return new Set(values).size === values.length;
+
+}
+
+
+function saveKeybindInputs() {
+
+  const candidate = {};
+
+  for (const [action, input] of Object.entries(KEYBIND_FIELDS)) {
+
+    candidate[action] = normalizeKey(input.value);
+
+  }
+
+  if (!validateKeybinds(candidate)) {
+
+    keybindMessage.textContent =
+      "Use one letter, one number, or Space. Every shortcut must be unique.";
+
+    return;
+
+  }
+
+  keybinds = candidate;
+
+  updateKeybindFields();
+
+  keybindMessage.textContent =
+    "Keyboard shortcuts updated.";
+
+  persistData();
+
+}
+
+
+for (const input of Object.values(KEYBIND_FIELDS)) {
+
+  input.addEventListener("change", saveKeybindInputs);
+
+  input.addEventListener("keydown", event => {
+
+    if (event.key === "Enter") {
+      input.blur();
+    }
+
+  });
+
+}
+
+
+function matchesKey(event, binding) {
+
+  if (binding === " ") {
+    return event.code === "Space";
+  }
+
+  return event.key.toLowerCase() === binding;
+
+}
+
+
+// ============================================
+// DISPLAY AND HIDE-BUTTON SETTINGS
+// ============================================
+
+const TIME_UNIT_FIELDS = {
+  days: document.getElementById("unitDays"),
+  hours: document.getElementById("unitHours"),
+  minutes: document.getElementById("unitMinutes"),
+  seconds: document.getElementById("unitSeconds"),
+  milliseconds: document.getElementById("unitMilliseconds")
+};
+
+const showLapsToggle = document.getElementById("showLapsToggle");
+const hideButtonsButton = document.getElementById("hideButtonsButton");
+const timeUnitMessage = document.getElementById("timeUnitMessage");
+
+function applyLapVisibility() {
+  document.getElementById("lapsPanel").classList.toggle("is-hidden", !showLaps);
+}
+
+function applyHideButtonsMode() {
+  stage.classList.toggle("hide-buttons", hideButtonsMode);
+  hideButtonsButton.textContent = hideButtonsMode ? "Show buttons" : "Hide buttons";
+  hideButtonsButton.setAttribute("aria-pressed", String(hideButtonsMode));
+  hideButtonsButton.title = hideButtonsMode ? "Show buttons (H)" : "Hide buttons (H)";
+
+  document.querySelectorAll("[data-hideable]").forEach(element => {
+    const option = element.dataset.hideable;
+    const keepVisible = Boolean(hideButtonsOptions[option]);
+    element.classList.toggle("hide-mode-hidden", hideButtonsMode && !keepVisible);
+  });
+
+  document.querySelectorAll("#controls .group").forEach(group => {
+    const buttons = [...group.querySelectorAll("button[data-hideable]")];
+    const hasVisible = buttons.some(button => !button.classList.contains("hide-mode-hidden"));
+    group.classList.toggle("group-empty-in-hide", hideButtonsMode && !hasVisible);
+  });
+
+  const controls = document.getElementById("controls");
+  const anyVisible = [...controls.querySelectorAll("button[data-hideable]")]
+    .some(button => !button.classList.contains("hide-mode-hidden"));
+  controls.classList.toggle("controls-empty-in-hide", hideButtonsMode && !anyVisible);
+}
+
+function toggleHideButtonsMode() {
+  hideButtonsMode = !hideButtonsMode;
+  applyHideButtonsMode();
+  persistData();
+}
+
+hideButtonsButton.addEventListener("click", event => {
+  event.stopPropagation();
+  toggleHideButtonsMode();
+});
+
+for (const [unit, input] of Object.entries(TIME_UNIT_FIELDS)) {
+  input.addEventListener("change", () => {
+    const candidate = Object.fromEntries(
+      Object.entries(TIME_UNIT_FIELDS).map(([key, field]) => [key, field.checked])
+    );
+
+    if (!Object.values(candidate).some(Boolean)) {
+      input.checked = true;
+      candidate[unit] = true;
+      timeUnitMessage.textContent = "At least one time unit must remain enabled.";
+    } else {
+      timeUnitMessage.textContent = "Disabled units are folded into the next enabled unit.";
+    }
+
+    timeUnits = candidate;
+    display.textContent = formatTime(getTime());
+    renderLaps();
+    persistData();
+    renderTabs();
+  });
+}
+
+showLapsToggle.addEventListener("change", () => {
+  showLaps = showLapsToggle.checked;
+  applyLapVisibility();
+  persistData();
+});
+
+document.querySelectorAll("[data-hide-option]").forEach(input => {
+  input.addEventListener("change", () => {
+    hideButtonsOptions[input.dataset.hideOption] = input.checked;
+    applyHideButtonsMode();
+    persistData();
+  });
+});
+
+
+// ============================================
+// TABS MENU AND TAB MANAGEMENT
+// ============================================
+
+const tabsOverlay = document.getElementById("tabsOverlay");
+const tabsBar = document.getElementById("tabsBar");
+const tabNameInput = document.getElementById("tabNameInput");
+const activeTabState = document.getElementById("activeTabState");
+const activeTabTime = document.getElementById("activeTabTime");
+const deleteTabButton = document.getElementById("deleteTabButton");
+
+function renderTabs() {
+  tabsBar.replaceChildren();
+
+  for (const tab of tabs) {
+    const item = document.createElement("div");
+    item.className = "tab-item" + (tab.id === activeTabId ? " active" : "");
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tab-chip";
+    button.title = "Switch to " + tab.name;
+    button.setAttribute("aria-current", tab.id === activeTabId ? "page" : "false");
+
+    if (tab.running) {
+      const dot = document.createElement("span");
+      dot.className = "tab-running-dot";
+      button.appendChild(dot);
+    }
+
+    const label = document.createElement("span");
+    label.textContent = tab.name;
+    label.style.overflow = "hidden";
+    label.style.textOverflow = "ellipsis";
+    button.appendChild(label);
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      switchToTab(tab.id);
+    });
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "tab-close";
+    closeButton.textContent = "×";
+    closeButton.title = "Close " + tab.name;
+    closeButton.setAttribute("aria-label", "Close " + tab.name);
+    closeButton.disabled = tabs.length <= 1;
+    closeButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTabById(tab.id);
+    });
+
+    item.append(button, closeButton);
+    tabsBar.appendChild(item);
+  }
+
+  const newButton = document.createElement("button");
+  newButton.id = "newTabButton";
+  newButton.type = "button";
+  newButton.textContent = "+";
+  newButton.title = "Create a new stopwatch tab";
+  newButton.setAttribute("aria-label", "Create new tab");
+  newButton.addEventListener("click", createNewTab);
+  tabsBar.appendChild(newButton);
+
+  const active = getTabById(activeTabId);
+  if (active) {
+    tabNameInput.value = active.name;
+    activeTabState.textContent = active.running ? "Running" : "Paused";
+    activeTabTime.textContent = formatTime(getTabTime(active));
+  } else {
+    tabNameInput.value = "";
+    activeTabState.textContent = "No active tab";
+    activeTabTime.textContent = formatTime(0);
+  }
+
+  deleteTabButton.disabled = tabs.length <= 1;
+  updateStopwatchHeading();
+}
+
+function updateTabsMenuLiveDisplay() {
+  if (!tabsOverlay.classList.contains("open")) return;
+  const active = getTabById(activeTabId);
+  if (!active) return;
+  activeTabState.textContent = running ? "Running" : "Paused";
+  activeTabTime.textContent = formatTime(getTime());
+}
+
+function openTabsMenu() {
+  renderTabs();
+  tabsOverlay.classList.add("open");
+}
+
+function closeTabsMenu() {
+  tabsOverlay.classList.remove("open");
+}
+
+function switchToTab(id) {
+  if (id === activeTabId) {
+    renderTabs();
+    return;
+  }
+
+  const next = getTabById(id);
+  if (!next) return;
+
+  // Snapshot the current stopwatch before changing the active instance.
+  // Keep the tabs menu open so the selection cannot click through to the
+  // stage and accidentally trigger Start/Pause on touch devices.
+  saveActiveTabState();
+  activeTabId = id;
+  loadTabState(next);
+  syncUI();
+  renderTabs();
+  persistData();
+}
+
+function createNewTab() {
+  saveActiveTabState();
+  const tab = createTabRecord();
+  tabs.push(tab);
+  nextTabNumber = getNextAvailableTabNumber();
+  activeTabId = tab.id;
+  loadTabState(tab);
+  syncUI();
+  renderTabs();
+  persistData();
+}
+
+function renameActiveTab() {
+  const tab = getTabById(activeTabId);
+  if (!tab) return;
+
+  const newName = tabNameInput.value.trim().slice(0, 30);
+  if (!newName) {
+    tabNameInput.value = tab.name;
+    return;
+  }
+
+  tab.name = newName;
+  renderTabs();
+  persistData();
+}
+
+function closeTabById(id) {
+  if (tabs.length <= 1) return;
+
+  const index = tabs.findIndex(tab => tab.id === id);
+  if (index < 0) return;
+
+  const closingActiveTab = id === activeTabId;
+  if (closingActiveTab) saveActiveTabState();
+
+  tabs.splice(index, 1);
+  nextTabNumber = getNextAvailableTabNumber();
+
+  if (closingActiveTab) {
+    // Prefer the tab immediately to the left; use the first tab when
+    // closing the leftmost tab. The selected timer retains its own state.
+    const next = tabs[Math.max(0, index - 1)] || tabs[0];
+    activeTabId = next.id;
+    loadTabState(next);
+    syncUI();
+  }
+
+  renderTabs();
+  persistData();
+}
+
+function deleteActiveTab() {
+  closeTabById(activeTabId);
+}
+
+document.getElementById("tabsButton").addEventListener("click", event => {
+  event.stopPropagation();
+  openTabsMenu();
+});
+
+document.getElementById("closeTabsButton").addEventListener("click", closeTabsMenu);
+document.getElementById("closeTabsX").addEventListener("click", closeTabsMenu);
+document.getElementById("renameTabButton").addEventListener("click", renameActiveTab);
+deleteTabButton.addEventListener("click", deleteActiveTab);
+tabNameInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    renameActiveTab();
+    tabNameInput.blur();
+  }
+});
+tabsOverlay.addEventListener("click", event => {
+  // Prevent tab-menu clicks from bubbling to #stage. Otherwise closing the
+  // menu on a touch device can make the same tap start the stopwatch.
+  event.stopPropagation();
+  if (event.target === tabsOverlay) closeTabsMenu();
+});
+
+
+// ============================================
+// SAVING DATA
+// ============================================
+
+function persistData() {
+
+  saveActiveTabState();
+
+  try {
+
+    if (!saveEnabled) {
+
+      // Store only the opt-out flag, not the user's data.
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          saveEnabled: false
+        })
+      );
+
+      return;
+
+    }
+
+    const data = {
+
+      saveEnabled: true,
+
+      // Settings
+
+      volume,
+      precision,
+      soundOn,
+
+      startSoundType,
+      endSoundType,
+
+      uploadedNames,
+
+      keybinds,
+      blindMode,
+      timeUnits,
+      timeUnitsVersion: 2,
+      showLaps,
+      hideButtonsOptions,
+      hideButtonsMode,
+
+      // Independent stopwatch tabs
+
+      tabs: tabs.map(tab => ({
+        id: tab.id,
+        name: tab.name,
+        elapsed: tab.elapsed,
+        running: tab.running,
+        savedAt: tab.savedAt,
+        laps: tab.laps
+      })),
+      activeTabId,
+      nextTabNumber: getNextAvailableTabNumber(),
+
+      // Lap history for backward compatibility
+
+      laps,
+
+      // Stopwatch state
+
+      elapsed: getTime(),
+      running,
+      savedAt: Date.now()
+
+    };
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(data)
+    );
+
+  } catch (error) {
+
+    // Storage may be unavailable or full.
+    // The stopwatch continues to function.
+
+  }
+
+}
+
+
+// ============================================
+// LOADING SAVED DATA
+// ============================================
+
+function loadSavedData() {
+
+  let data = null;
+
+  try {
+
+    const raw = localStorage.getItem(STORAGE_KEY);
+
+    if (raw) {
+      data = JSON.parse(raw);
+    }
+
+  } catch (error) {
+
+    data = null;
+
+  }
+
+  if (data && data.saveEnabled === false) {
+
+    saveEnabled = false;
+
+    return;
+
+  }
+
+  saveEnabled = true;
+
+  if (!data) return;
+
+
+  // Volume
+
+  if (Number.isFinite(Number(data.volume))) {
+
+    volume = Math.max(
+      0,
+      Math.min(600, Number(data.volume))
+    );
+
+  }
+
+
+  // Precision
+
+  if ([0, 1, 2, 3].includes(Number(data.precision))) {
+
+    precision = Number(data.precision);
+
+  }
+
+
+  // Sound enabled
+
+  soundOn = Boolean(data.soundOn);
+
+
+  // Sound selections
+
+  const validSounds = SOUND_OPTIONS.map(item => item[0]);
+
+  if (validSounds.includes(data.startSoundType)) {
+
+    startSoundType = data.startSoundType;
+
+  }
+
+  if (validSounds.includes(data.endSoundType)) {
+
+    endSoundType = data.endSoundType;
+
+  }
+
+
+  // Uploaded filenames
+
+  if (data.uploadedNames && typeof data.uploadedNames === "object") {
+
+    uploadedNames = {
+      start: String(data.uploadedNames.start || ""),
+      end: String(data.uploadedNames.end || "")
+    };
+
+  }
+
+
+  // Keybinds
+
+  if (data.keybinds && typeof data.keybinds === "object") {
+
+    const candidate = {
+
+      toggle: normalizeKey(data.keybinds.toggle),
+      reset: normalizeKey(data.keybinds.reset),
+      fullscreen: normalizeKey(data.keybinds.fullscreen),
+      lap: normalizeKey(data.keybinds.lap),
+      // Older saved versions may not include these newer shortcuts.
+      blind: normalizeKey(data.keybinds.blind || DEFAULT_KEYBINDS.blind),
+      hideButtons: normalizeKey(data.keybinds.hideButtons || DEFAULT_KEYBINDS.hideButtons),
+      tabs: normalizeKey(data.keybinds.tabs || DEFAULT_KEYBINDS.tabs),
+      settings: normalizeKey(data.keybinds.settings || DEFAULT_KEYBINDS.settings),
+      precision0: normalizeKey(data.keybinds.precision0 || DEFAULT_KEYBINDS.precision0),
+      precision1: normalizeKey(data.keybinds.precision1 || DEFAULT_KEYBINDS.precision1),
+      precision2: normalizeKey(data.keybinds.precision2 || DEFAULT_KEYBINDS.precision2),
+      precision3: normalizeKey(data.keybinds.precision3 || DEFAULT_KEYBINDS.precision3)
+
+    };
+
+    // If an older custom shortcut already uses S, preserve that shortcut
+    // and assign Settings the first free single-character key.
+    if (!data.keybinds.settings && candidate.settings !== null) {
+      const existingKeys = new Set(
+        Object.entries(candidate)
+          .filter(([action]) => action !== "settings")
+          .map(([, key]) => key)
+      );
+      if (existingKeys.has(candidate.settings)) {
+        candidate.settings = [..."abcdefghijklmnopqrstuvwxyz0123456789"]
+          .find(key => !existingKeys.has(key)) || DEFAULT_KEYBINDS.settings;
+      }
+    }
+
+    if (validateKeybinds(candidate)) {
+
+      keybinds = candidate;
+
+    }
+
+  }
+
+
+  // Time display units. Older versions defaulted every unit on. Migrate
+  // those unversioned defaults once, then preserve the user's new choices.
+  if (data.timeUnitsVersion >= 2 && data.timeUnits && typeof data.timeUnits === "object") {
+    timeUnits = {
+      days: data.timeUnits.days !== false,
+      hours: data.timeUnits.hours !== false,
+      minutes: data.timeUnits.minutes !== false,
+      seconds: data.timeUnits.seconds !== false,
+      milliseconds: data.timeUnits.milliseconds !== false
+    };
+    if (!Object.values(timeUnits).some(Boolean)) {
+      timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true };
+    }
+  } else {
+    timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true };
+  }
+
+  showLaps = data.showLaps !== false;
+
+  if (data.hideButtonsOptions && typeof data.hideButtonsOptions === "object") {
+    hideButtonsOptions = {
+      ...hideButtonsOptions,
+      ...Object.fromEntries(Object.keys(hideButtonsOptions).map(key => [
+        key,
+        Boolean(data.hideButtonsOptions[key])
+      ]))
+    };
+  }
+
+  hideButtonsMode = Boolean(data.hideButtonsMode);
+
+
+  // Blind Mode
+
+  blindMode = Boolean(data.blindMode);
+
+
+  // Laps
+
+  if (Array.isArray(data.laps)) {
+
+    laps = data.laps
+      .filter(lap =>
+        lap &&
+        Number.isFinite(Number(lap.totalMs)) &&
+        Number.isFinite(Number(lap.splitMs))
+      )
+      .map((lap, index) => ({
+        number: Math.max(1, Number(lap.number) || index + 1),
+        totalMs: Math.max(0, Number(lap.totalMs)),
+        splitMs: Math.max(0, Number(lap.splitMs))
+      }));
+
+  }
+
+
+  // Stopwatch time.
+  //
+  // If it was running when the user left, add the
+  // time spent away from the page.
+
+  const savedElapsed = Math.max(
+    0,
+    Number(data.elapsed) || 0
+  );
+
+  running = Boolean(data.running);
+
+  if (running && Number.isFinite(Number(data.savedAt))) {
+
+    const timeAway = Math.max(
+      0,
+      Date.now() - Number(data.savedAt)
+    );
+
+    elapsed = savedElapsed + timeAway;
+
+  } else {
+
+    elapsed = savedElapsed;
+    running = false;
+
+  }
+
+  startedAt = 0;
+
+  if (Array.isArray(data.tabs) && data.tabs.length) {
+    tabs = data.tabs
+      .filter(tab => tab && typeof tab === "object")
+      .map((tab, index) => ({
+        id: String(tab.id || "restored-tab-" + (index + 1)),
+        name: String(tab.name || "Tab " + (index + 1)).slice(0, 30),
+        elapsed: Math.max(0, Number(tab.elapsed) || 0),
+        running: Boolean(tab.running),
+        savedAt: Number(tab.savedAt) || Date.now(),
+        laps: Array.isArray(tab.laps)
+          ? tab.laps
+              .filter(lap => lap && Number.isFinite(Number(lap.totalMs)) && Number.isFinite(Number(lap.splitMs)))
+              .map((lap, lapIndex) => ({
+                number: Math.max(1, Number(lap.number) || lapIndex + 1),
+                totalMs: Math.max(0, Number(lap.totalMs)),
+                splitMs: Math.max(0, Number(lap.splitMs))
+              }))
+          : []
+      }));
+
+    if (!tabs.length) {
+      tabs = [{ id: "tab-1", name: "Tab 1", elapsed, running, savedAt: Date.now(), laps: laps.map(lap => ({ ...lap })) }];
+    }
+
+    activeTabId = tabs.some(tab => tab.id === data.activeTabId)
+      ? data.activeTabId
+      : tabs[0].id;
+
+    // Recompute the next default name from the tabs that still exist.
+    nextTabNumber = getNextAvailableTabNumber();
+
+    loadTabState(getTabById(activeTabId));
+  } else {
+    tabs = [{
+      id: "tab-1",
+      name: "Tab 1",
+      elapsed,
+      running,
+      savedAt: Date.now(),
+      laps: laps.map(lap => ({ ...lap }))
+    }];
+    activeTabId = "tab-1";
+    nextTabNumber = 2;
+  }
+
+}
+
+
+// ============================================
+// RESTORE UPLOADED AUDIO FILES
+// ============================================
+
+async function restoreUploadedAudio(slot) {
+
+  if (!saveEnabled) return;
+
+  try {
+
+    const record = await getStoredAudioFile(slot);
+
+    const fileLabel = document.getElementById(
+      slot === "start" ? "startFileName" : "endFileName"
+    );
+
+    if (!record || !record.blob) {
+
+      if (uploadedNames[slot]) {
+
+        fileLabel.textContent =
+          uploadedNames[slot] + " (upload again to restore)";
+
+      }
+
+      return;
+
+    }
+
+    uploadedBlobs[slot] = record.blob;
+
+    uploadedURLs[slot] = URL.createObjectURL(record.blob);
+
+    uploadedNames[slot] = record.name || uploadedNames[slot];
+
+    fileLabel.textContent = uploadedNames[slot];
+
+  } catch (error) {
+
+    // Keep the rest of the settings working.
+
+  }
+
+}
+
+
+// ============================================
+// DATA SAVING TOGGLE
+// ============================================
+
+saveDataToggle.addEventListener("change", async () => {
+
+  saveEnabled = saveDataToggle.checked;
+
+  if (!saveEnabled) {
+
+    // Remove stored preferences, laps and uploads.
+
+    try {
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          saveEnabled: false
+        })
+      );
+
+    } catch (_) {}
+
+    await clearStoredAudioFiles();
+
+    keybindMessage.textContent =
+      "Saving is off. Your current session will continue normally.";
+
+  } else {
+
+    persistData();
+
+    // Save any files that are currently loaded in memory.
+
+    for (const slot of ["start", "end"]) {
+
+      if (uploadedBlobs[slot]) {
+
+        storeAudioFile(slot, uploadedBlobs[slot])
+          .catch(() => {});
+
+      }
+
+    }
+
+    keybindMessage.textContent =
+      "Saving is enabled.";
+
+  }
+
+});
+
+
+// ============================================
+// RESTORE SETTINGS TO UI
+// ============================================
+
+function syncUI() {
+
+  volumeSlider.value = volume;
+
+  volumeValue.textContent = volume + "%";
+
+  startSoundSelect.value = startSoundType;
+
+  endSoundSelect.value = endSoundType;
+
+  soundButton.textContent = soundOn ? "On" : "Off";
+
+  soundButton.setAttribute(
+    "aria-pressed",
+    String(soundOn)
+  );
+  soundButton.title = soundOn ? "Turn sound off" : "Turn sound on";
+
+  saveDataToggle.checked = saveEnabled;
+
+  updateKeybindFields();
+  applyBlindMode();
+
+  for (const [unit, input] of Object.entries(TIME_UNIT_FIELDS)) {
+    input.checked = Boolean(timeUnits[unit]);
+  }
+  showLapsToggle.checked = showLaps;
+  document.querySelectorAll("[data-hide-option]").forEach(input => {
+    input.checked = Boolean(hideButtonsOptions[input.dataset.hideOption]);
+  });
+  applyLapVisibility();
+  applyHideButtonsMode();
+  updateStopwatchHeading();
+
+
+  document.querySelectorAll("[data-precision]")
+  .forEach(button => {
+
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.precision) === precision)
+    );
+
+  });
+
+
+  mainButton.textContent = running ? "Pause" : "Start";
+
+  status.textContent = running
+    ? "Running"
+    : elapsed > 0
+      ? "Paused"
+      : "Ready";
+
+  display.textContent = formatTime(getTime());
+
+  renderLaps();
+
+}
+
+
+// ============================================
+// BLIND MODE
+// ============================================
+
+const blindButton = document.getElementById("blindButton");
+
+function applyBlindMode() {
+
+  stage.classList.toggle("blind-mode", blindMode);
+
+  blindButton.textContent = blindMode ? "Blind: On" : "Blind: Off";
+  blindButton.setAttribute("aria-pressed", String(blindMode));
+  blindButton.title = blindMode
+    ? "Turn Blind Mode off (B)"
+    : "Turn Blind Mode on (B)";
+
+}
+
+function toggleBlindMode() {
+
+  blindMode = !blindMode;
+  applyBlindMode();
+  persistData();
+
+}
+
+blindButton.addEventListener("click", event => {
+  event.stopPropagation();
+  toggleBlindMode();
+});
+
+
+// ============================================
+// SETTINGS OVERLAY
+// ============================================
+
+function openSettings() {
+
+  settingsOverlay.classList.add("open");
+
+}
+
+
+function closeSettings() {
+
+  settingsOverlay.classList.remove("open");
+
+}
+
+
+document.getElementById("settingsButton")
+.addEventListener("click", openSettings);
+
+
+document.getElementById("closeSettings")
+.addEventListener("click", closeSettings);
+
+
+document.getElementById("doneButton")
+.addEventListener("click", closeSettings);
+
+
+settingsOverlay.addEventListener("click", event => {
+
+  if (event.target === settingsOverlay) {
+    closeSettings();
+  }
+
+});
+
+
+// ============================================
+// STOPWATCH DISPLAY UPDATE
+// ============================================
+
+function update() {
+
+  display.textContent = formatTime(getTime());
+
+  updateTabsMenuLiveDisplay();
+
+  if (running) {
+
+    animation = requestAnimationFrame(update);
+
+  }
+
+}
+
+
+// ============================================
+// START
+// ============================================
+
+function start() {
+
+  if (running) return;
+
+  running = true;
+
+  startedAt = performance.now();
+
+  mainButton.textContent = "Pause";
+
+  status.textContent = "Running";
+
+  playStopwatchSound("start");
+
+  cancelAnimationFrame(animation);
+
+  update();
+
+  persistData();
+
+}
+
+
+// ============================================
+// PAUSE
+// ============================================
+
+function pause() {
+
+  if (!running) return;
+
+  elapsed = getTime();
+
+  running = false;
+
+  cancelAnimationFrame(animation);
+
+  display.textContent = formatTime(elapsed);
+
+  mainButton.textContent = "Start";
+
+  status.textContent = "Paused";
+
+  playStopwatchSound("end");
+
+  persistData();
+
+}
+
+
+// ============================================
+// TOGGLE
+// ============================================
+
+function toggle() {
+
+  running ? pause() : start();
+
+}
+
+
+// ============================================
+// RESET
+// ============================================
+
+function reset() {
+
+  running = false;
+
+  elapsed = 0;
+
+  startedAt = 0;
+
+  cancelAnimationFrame(animation);
+
+  display.textContent = formatTime(0);
+
+  mainButton.textContent = "Start";
+
+  status.textContent = "Ready";
+
+  // Reset also clears the current lap session.
+
+  laps = [];
+
+  renderLaps();
+
+  persistData();
+
+}
+
+
+// ============================================
+// STOPWATCH SOUND EVENT
+// ============================================
+
+function playStopwatchSound(slot) {
+
+  if (!soundOn) return;
+
+  playConfiguredSound(slot);
+
+}
+
+
+// ============================================
+// MAIN BUTTON
+// ============================================
+
+mainButton.addEventListener("click", event => {
+
+  event.stopPropagation();
+
+  toggle();
+
+});
+
+
+// ============================================
+// STAGE CLICK
+// ============================================
+
+stage.addEventListener("click", event => {
+
+  if (
+    event.target.closest("#controls") ||
+    event.target.closest("#mainButton") ||
+    event.target.closest("#lapsPanel") ||
+    event.target.closest("#settingsOverlay") ||
+    event.target.closest("#tabsOverlay") ||
+    event.target.closest("#hideButtonsButton")
+  ) {
+
+    return;
+
+  }
+
+  toggle();
+
+});
+
+
+// ============================================
+// RESET BUTTON
+// ============================================
+
+document.getElementById("resetButton")
+.addEventListener("click", reset);
+
+
+// ============================================
+// PRECISION
+// ============================================
+
+function setPrecision(value) {
+
+  if (![0, 1, 2, 3].includes(Number(value))) return;
+
+  precision = Number(value);
+
+  document.querySelectorAll("[data-precision]")
+  .forEach(button => {
+
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.precision) === precision)
+    );
+
+  });
+
+  display.textContent = formatTime(getTime());
+
+  renderLaps();
+
+  persistData();
+
+}
+
+
+document.querySelectorAll("[data-precision]")
+.forEach(button => {
+
+  button.addEventListener("click", () => {
+    setPrecision(Number(button.dataset.precision));
+  });
+
+});
+
+
+// ============================================
+// FULLSCREEN
+// ============================================
+
+async function toggleFullscreen() {
+
+  try {
+
+    if (!document.fullscreenElement) {
+
+      await stage.requestFullscreen();
+
+    } else {
+
+      await document.exitFullscreen();
+
+    }
+
+  } catch (error) {
+
+    status.textContent = "Fullscreen unavailable";
+
+  }
+
+}
+
+
+document.getElementById("fullscreenButton")
+.addEventListener("click", toggleFullscreen);
+
+
+document.addEventListener("fullscreenchange", () => {
+
+  document.getElementById("fullscreenButton").textContent =
+    document.fullscreenElement
+      ? "⛶ Exit fullscreen"
+      : "⛶ Fullscreen";
+
+});
+
+
+// ============================================
+// KEYBOARD SHORTCUTS
+// ============================================
+
+document.addEventListener("keydown", event => {
+
+  if (
+    event.repeat ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey
+  ) {
+
+    return;
+
+  }
+
+
+  if (event.key === "Escape") {
+
+    closeSettings();
+    closeTabsMenu();
+
+    return;
+
+  }
+
+
+  // Do not run shortcuts while entering settings,
+  // editing a keybind or using another input.
+
+  if (
+    settingsOverlay.classList.contains("open") ||
+    tabsOverlay.classList.contains("open")
+  ) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (
+    target &&
+    (
+      target.tagName === "INPUT" ||
+      target.tagName === "SELECT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  // Open the tabs menu
+
+  if (matchesKey(event, keybinds.tabs)) {
+    event.preventDefault();
+    openTabsMenu();
+    return;
+  }
+
+  // Open Settings
+
+  if (matchesKey(event, keybinds.settings)) {
+    event.preventDefault();
+    openSettings();
+    return;
+  }
+
+
+  // Hide / show controls
+
+  if (matchesKey(event, keybinds.hideButtons)) {
+    event.preventDefault();
+    toggleHideButtonsMode();
+    return;
+  }
+
+
+  // Start / Pause
+
+  if (matchesKey(event, keybinds.toggle)) {
+
+    event.preventDefault();
+
+    toggle();
+
+    return;
+
+  }
+
+
+  // Reset
+
+  if (matchesKey(event, keybinds.reset)) {
+
+    event.preventDefault();
+
+    reset();
+
+    return;
+
+  }
+
+
+  // Fullscreen
+
+  if (matchesKey(event, keybinds.fullscreen)) {
+
+    event.preventDefault();
+
+    toggleFullscreen();
+
+    return;
+
+  }
+
+
+  // Lap
+
+  if (matchesKey(event, keybinds.lap)) {
+
+    event.preventDefault();
+
+    recordLap();
+
+    return;
+
+  }
+
+
+  // Blind Mode
+
+  if (matchesKey(event, keybinds.blind)) {
+
+    event.preventDefault();
+
+    toggleBlindMode();
+
+    return;
+
+  }
+
+
+  // Precision shortcuts
+
+  for (let value = 0; value <= 3; value++) {
+
+    if (matchesKey(event, keybinds[`precision${value}`])) {
+
+      event.preventDefault();
+
+      setPrecision(value);
+
+      return;
+
+    }
+
+  }
+
+});
+
+
+// ============================================
+// SAVE WHILE RUNNING
+// ============================================
+
+// Periodically save the timer so that an unexpected
+// page closure loses as little time as possible.
+
+setInterval(() => {
+
+  if (running && saveEnabled) {
+    persistData();
+  }
+
+  updateTabsMenuLiveDisplay();
+
+}, 1000);
+
+
+// Save when the browser hides or leaves the page.
+
+document.addEventListener("visibilitychange", () => {
+
+  if (document.hidden) {
+    persistData();
+  }
+
+});
+
+
+window.addEventListener("pagehide", () => {
+
+  persistData();
+
+});
+
+
+window.addEventListener("beforeunload", () => {
+
+  persistData();
+
+});
+
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+loadSavedData();
+
+if (!tabs.length) {
+  tabs = [{
+    id: "tab-1",
+    name: "Tab 1",
+    elapsed,
+    running,
+    savedAt: Date.now(),
+    laps: laps.map(lap => ({ ...lap }))
+  }];
+  activeTabId = "tab-1";
+  nextTabNumber = 2;
+}
+
+syncUI();
+renderTabs();
+
+
+// Restore uploaded audio asynchronously.
+
+if (saveEnabled) {
+
+  restoreUploadedAudio("start");
+
+  restoreUploadedAudio("end");
+
+}
+
+
+// Resume the display if the saved stopwatch
+// was running when the user last left.
+
+if (running) {
+
+  startedAt = performance.now();
+
+  mainButton.textContent = "Pause";
+
+  status.textContent = "Running";
+
+  update();
+
+}
+
+
+// Save the initial state if saving is enabled.
+
+persistData();
+
+</script>
+
+</body>
+</html>
