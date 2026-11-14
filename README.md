@@ -1,0 +1,2 @@
+# Stopwatch
+Fullscreen Stopwatch application
