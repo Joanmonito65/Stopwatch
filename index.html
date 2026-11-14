@@ -1480,19 +1480,24 @@ function formatTime(ms) {
 
   ms = Math.max(0, ms);
 
-  const total = ms / 1000;
+  const totalSeconds = Math.floor(ms / 1000);
 
-  const hours = Math.floor(total / 3600);
-
-  const minutes = Math.floor(
-    (total % 3600) / 60
-  );
-
-  const seconds = Math.floor(total % 60);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
   let result;
 
-  if (hours > 0) {
+  if (days > 0) {
+
+    result =
+      days + "d:" +
+      String(hours).padStart(2, "0") + ":" +
+      String(minutes).padStart(2, "0") + ":" +
+      String(seconds).padStart(2, "0");
+
+  } else if (hours > 0) {
 
     result =
       String(hours).padStart(2, "0") + ":" +
@@ -1502,7 +1507,7 @@ function formatTime(ms) {
   } else {
 
     result =
-      String(Math.floor(total / 60)).padStart(2, "0") + ":" +
+      String(Math.floor(totalSeconds / 60)).padStart(2, "0") + ":" +
       String(seconds).padStart(2, "0");
 
   }
