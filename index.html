@@ -1245,6 +1245,14 @@ input[type="range"] {
 #confirmOk{background:#ef4444;color:#fff}
 #confirmOk:hover{background:#f87171}
 #confirmCancel{border:1px solid var(--border)}
+
+/* Slimmer control bar */
+#controls{padding:5px;gap:4px 10px}
+#controls .group{min-height:0}
+#controls .group button{height:34px;padding-top:0;padding-bottom:0}
+/* Compact (phone / narrow) screens: only the essential buttons by default */
+.compact-hidden,.group-empty-compact{display:none !important}
+#stage.compact .group-label{display:none}
 </style>
 </head>
 
@@ -1465,6 +1473,20 @@ input[type="range"] {
           <label class="check-row"><input type="checkbox" id="titleTimeToggle"> Show time in browser tab title</label>
         </div>
         <div class="setting-description">Keep-awake needs browser support. The tab title is not updated in Blind Mode.</div>
+      </div>
+
+      <div class="setting">
+        <div class="setting-title"><span>Buttons on phones and small screens</span></div>
+        <div class="option-grid">
+          <label class="check-row"><input type="checkbox" data-compact-option="precision"> Precision</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="sound"> Sound</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="tabs"> Tabs</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="blind"> Blind mode</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="copy"> Copy time</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="csv"> Export CSV</label>
+          <label class="check-row"><input type="checkbox" data-compact-option="clearLaps"> Clear laps</label>
+        </div>
+        <div class="setting-description">Small screens only show Start, Reset, Lap, Settings and Fullscreen by default. Turn on any extra buttons you want here. Wide screens always show everything.</div>
       </div>
 
       <!-- VOLUME -->
@@ -1795,10 +1817,16 @@ input[type="range"] {
             <input type="text" id="keyNextTab" maxlength="5" value="P" autocomplete="off" spellcheck="false">
           </label>
 
+        
+          <label class="keybind-field">
+            New tab
+            <input type="text" id="keyNewTab" maxlength="5" value="Q" autocomplete="off" spellcheck="false">
+          </label>
+
         </div>
 
         <div id="keybindMessage">
-          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P.
+          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P, New tab: Q.
         </div>
         <button id="resetKeybinds">Reset shortcuts to default</button>
 
@@ -1929,7 +1957,7 @@ const lapCount = document.getElementById("lapCount");
 
 const STORAGE_KEY = "fullscreen-stopwatch-v4";
 
-const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab"];
+const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab", "newTab"];
 
 const DEFAULT_KEYBINDS = {
   toggle: " ",
@@ -1946,6 +1974,7 @@ const DEFAULT_KEYBINDS = {
   renameTab: "n",
   prevTab: "o",
   nextTab: "p",
+  newTab: "q",
   precision0: "1",
   precision1: "2",
   precision2: "3",
@@ -3183,6 +3212,7 @@ const KEYBIND_FIELDS = {
   renameTab: document.getElementById("keyRenameTab"),
   prevTab: document.getElementById("keyPrevTab"),
   nextTab: document.getElementById("keyNextTab"),
+  newTab: document.getElementById("keyNewTab"),
   precision0: document.getElementById("keyPrecision0"),
   precision1: document.getElementById("keyPrecision1"),
   precision2: document.getElementById("keyPrecision2"),
@@ -3228,7 +3258,7 @@ const SHORTCUT_TITLES = {
   blindButton: ["Toggle Blind Mode", "blind"], fullscreenButton: ["Fullscreen", "fullscreen"],
   settingsButton: ["Settings", "settings"], tabsButton: ["Open stopwatch tabs", "tabs"],
   copyButton: ["Copy current time", "copy"], exportCsvButton: ["Download laps as CSV", "exportCsv"],
-  deleteTabButton: ["Close this tab", "closeTab"], renameTabButton: ["Rename tab", "renameTab"]
+  newTabButton: ["Create a new stopwatch tab", "newTab"], deleteTabButton: ["Close this tab", "closeTab"], renameTabButton: ["Rename tab", "renameTab"]
 };
 
 function updateShortcutTitles() {
@@ -3369,6 +3399,7 @@ function applyHideButtonsMode() {
   const anyVisible = [...controls.querySelectorAll("button[data-hideable]")]
     .some(button => !button.classList.contains("hide-mode-hidden"));
   controls.classList.toggle("controls-empty-in-hide", hideButtonsMode && !anyVisible);
+  applyCompactMode();
 }
 
 function toggleHideButtonsMode() {
@@ -3677,6 +3708,7 @@ function persistData() {
       confirmations,
       keepAwake,
       titleTime,
+      compactVisible,
       settingsVersion: 5,
 
       // Independent stopwatch tabs
@@ -3900,6 +3932,9 @@ function loadSavedData() {
   }
   keepAwake = Boolean(data.keepAwake);
   titleTime = Boolean(data.titleTime);
+  if (data.compactVisible && typeof data.compactVisible === "object") {
+    for (const key of COMPACT_OPTIONS) compactVisible[key] = Boolean(data.compactVisible[key]);
+  }
 
 
   // Blind Mode
@@ -4139,6 +4174,7 @@ function syncUI() {
     input.checked = Boolean(hideButtonsOptions[input.dataset.hideOption]);
   });
   document.querySelectorAll("[data-confirm]").forEach(i => { i.checked = Boolean(confirmations[i.dataset.confirm]); });
+  document.querySelectorAll("[data-compact-option]").forEach(i => { i.checked = Boolean(compactVisible[i.dataset.compactOption]); });
   document.getElementById("keepAwakeToggle").checked = keepAwake;
   document.getElementById("titleTimeToggle").checked = titleTime;
   applyLapVisibility();
@@ -4675,6 +4711,12 @@ document.addEventListener("keydown", event => {
     tabNameInput.select();
     return;
   }
+  if (matchesKey(event, keybinds.newTab)) {
+    event.preventDefault();
+    createNewTab();
+    toast("New tab: " + getTabById(activeTabId).name);
+    return;
+  }
   if (matchesKey(event, keybinds.prevTab)) { event.preventDefault(); stepTab(-1); return; }
   if (matchesKey(event, keybinds.nextTab)) { event.preventDefault(); stepTab(1); return; }
 
@@ -4916,6 +4958,39 @@ document.getElementById("titleTimeToggle").addEventListener("change", event => {
 });
 
 setInterval(syncWakeLock, 1000);
+
+
+// ============================================
+// COMPACT (SMALL SCREEN) BUTTONS
+// ============================================
+
+const COMPACT_OPTIONS = ["precision", "sound", "tabs", "blind", "copy", "csv", "clearLaps"];
+let compactVisible = Object.fromEntries(COMPACT_OPTIONS.map(key => [key, false]));
+const compactQuery = window.matchMedia("(max-width: 600px), (pointer: coarse) and (max-width: 950px)");
+
+function applyCompactMode() {
+  const compact = compactQuery.matches;
+  stage.classList.toggle("compact", compact);
+  document.querySelectorAll("[data-hideable]").forEach(el => {
+    const option = el.dataset.hideable;
+    el.classList.toggle("compact-hidden", compact && COMPACT_OPTIONS.includes(option) && !compactVisible[option]);
+  });
+  document.querySelectorAll("#controls .group").forEach(group => {
+    const buttons = [...group.querySelectorAll("button[data-hideable]")];
+    group.classList.toggle("group-empty-compact", buttons.length > 0 && buttons.every(button =>
+      button.classList.contains("compact-hidden") || button.classList.contains("hide-mode-hidden")));
+  });
+}
+
+compactQuery.addEventListener("change", applyCompactMode);
+
+document.querySelectorAll("[data-compact-option]").forEach(input => {
+  input.addEventListener("change", () => {
+    compactVisible[input.dataset.compactOption] = input.checked;
+    applyCompactMode();
+    persistData();
+  });
+});
 
 
 // ============================================
