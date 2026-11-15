@@ -1238,7 +1238,7 @@ input[type="range"] {
 /* One combined control bar instead of separate islands */
 #controls{background:#111827dd;border:1px solid var(--border);border-radius:16px;padding:7px;width:fit-content;margin:0 auto;gap:6px 12px}
 #controls .group{border:0;background:none;padding:0;border-radius:0}
-@media (min-width:1250px){#controls .group+.group{border-left:1px solid var(--border);padding-left:12px}}
+@media (min-width:1150px){#controls .group+.group{border-left:1px solid var(--border);padding-left:12px}}
 .confirm-box h3{margin:0 0 8px;font-size:18px}
 .confirm-box p{color:#cbd5e1;font-size:14px;line-height:1.55;margin:0 0 16px}
 .confirm-skip{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;margin:0 0 16px;cursor:pointer}
@@ -1253,6 +1253,9 @@ input[type="range"] {
 /* Compact (phone / narrow) screens: only the essential buttons by default */
 .compact-hidden,.group-empty-compact{display:none !important}
 #stage.compact .group-label{display:none}
+.lap-stats{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 8px;padding:7px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid #26344966;font-variant-numeric:tabular-nums}
+.lap-stats[hidden]{display:none}
+.lap-stats b{color:#cbd5e1;font-weight:650}
 </style>
 </head>
 
@@ -1289,6 +1292,8 @@ input[type="range"] {
 
     </div>
 
+    <div id="lapStats" class="lap-stats" hidden></div>
+
     <div id="lapsList">
       <div class="empty-laps">No laps yet.</div>
     </div>
@@ -1314,8 +1319,6 @@ input[type="range"] {
 
     <div class="group">
 
-      <span class="group-label">Sound</span>
-
       <button id="soundButton" data-hideable="sound" aria-pressed="false">
         Sound: Off
       </button>
@@ -1328,10 +1331,7 @@ input[type="range"] {
         ▤ Tabs
       </button>
 
-    </div>
-
-
-    <div class="group">
+      
 
       <button id="lapButton" data-hideable="lap">
         + Lap
@@ -1823,10 +1823,16 @@ input[type="range"] {
             <input type="text" id="keyNewTab" maxlength="5" value="Q" autocomplete="off" spellcheck="false">
           </label>
 
+        
+          <label class="keybind-field">
+            Undo last lap
+            <input type="text" id="keyUndoLap" maxlength="5" value="U" autocomplete="off" spellcheck="false">
+          </label>
+
         </div>
 
         <div id="keybindMessage">
-          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P, New tab: Q.
+          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P, New tab: Q, Undo last lap: U.
         </div>
         <button id="resetKeybinds">Reset shortcuts to default</button>
 
@@ -1957,7 +1963,7 @@ const lapCount = document.getElementById("lapCount");
 
 const STORAGE_KEY = "fullscreen-stopwatch-v4";
 
-const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab", "newTab"];
+const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab", "newTab", "undoLap"];
 
 const DEFAULT_KEYBINDS = {
   toggle: " ",
@@ -1975,6 +1981,7 @@ const DEFAULT_KEYBINDS = {
   prevTab: "o",
   nextTab: "p",
   newTab: "q",
+  undoLap: "u",
   precision0: "1",
   precision1: "2",
   precision2: "3",
@@ -2276,6 +2283,25 @@ function renderLaps() {
   lapList.replaceChildren();
 
   lapCount.textContent = laps.length;
+
+  const stats = document.getElementById("lapStats");
+  stats.hidden = laps.length < 2;
+  if (laps.length > 1) {
+    const splits = laps.map(l => l.splitMs);
+    const parts = [
+      ["Best", splits.reduce((a, b) => Math.min(a, b))],
+      ["Avg", splits.reduce((a, b) => a + b, 0) / splits.length],
+      ["Worst", splits.reduce((a, b) => Math.max(a, b))]
+    ];
+    stats.replaceChildren(...parts.map(([label, value]) => {
+      const span = document.createElement("span");
+      span.append(label + " ");
+      const strong = document.createElement("b");
+      strong.textContent = formatTime(value);
+      span.append(strong);
+      return span;
+    }));
+  }
 
   if (laps.length === 0) {
 
@@ -3213,6 +3239,7 @@ const KEYBIND_FIELDS = {
   prevTab: document.getElementById("keyPrevTab"),
   nextTab: document.getElementById("keyNextTab"),
   newTab: document.getElementById("keyNewTab"),
+  undoLap: document.getElementById("keyUndoLap"),
   precision0: document.getElementById("keyPrecision0"),
   precision1: document.getElementById("keyPrecision1"),
   precision2: document.getElementById("keyPrecision2"),
@@ -4546,6 +4573,8 @@ document.addEventListener("keydown", event => {
   // Browser autofill can fire key events with no key.
   if (!event.key) return;
 
+  if (event.key === "Tab") pointerMode = false;
+
   if (confirmResolve) {
     if (event.key === "Escape") { event.preventDefault(); closeConfirm(false); }
     return;
@@ -4576,6 +4605,9 @@ document.addEventListener("keydown", event => {
   // Keep normal typing and keybind editing untouched.
   const target = event.target;
 
+  // A button focused by the mouse should not swallow Space.
+  if (event.key === " " && pointerMode && target && target.tagName === "BUTTON") target.blur();
+
   if (
     target &&
     (
@@ -4583,7 +4615,7 @@ document.addEventListener("keydown", event => {
       target.tagName === "SELECT" ||
       target.tagName === "TEXTAREA" ||
       // Space / Enter on a keyboard-focused button must activate that button, not the stopwatch.
-      (target.tagName === "BUTTON" && (event.key === " " || event.key === "Enter")) ||
+      (target.tagName === "BUTTON" && (event.key === "Enter" || (event.key === " " && !pointerMode))) ||
       target.isContentEditable
     )
   ) {
@@ -4711,6 +4743,7 @@ document.addEventListener("keydown", event => {
     tabNameInput.select();
     return;
   }
+  if (matchesKey(event, keybinds.undoLap)) { event.preventDefault(); undoLastLap(); return; }
   if (matchesKey(event, keybinds.newTab)) {
     event.preventDefault();
     createNewTab();
@@ -4896,6 +4929,14 @@ async function copyTime() {
   toast(!ok ? "Copy failed" : blindMode ? "Copied" : "Copied " + text);
 }
 
+function undoLastLap() {
+  if (!laps.length) { toast("No laps to remove"); return; }
+  const removed = laps.pop();
+  renderLaps();
+  persistData();
+  toast("Removed lap " + removed.number);
+}
+
 function csvCell(value) {
   const text = String(value);
   return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
@@ -4935,10 +4976,14 @@ async function syncWakeLock() {
   }
 }
 
+let pointerMode = false;
+
+document.addEventListener("pointerdown", () => { pointerMode = true; }, true);
+
 document.addEventListener("click", event => {
   const button = event.target.closest && event.target.closest("button");
   if (button && event.detail > 0) button.blur();
-});
+}, true);
 
 document.getElementById("copyButton").addEventListener("click", copyTime);
 document.getElementById("exportCsvButton").addEventListener("click", exportLapsCSV);
