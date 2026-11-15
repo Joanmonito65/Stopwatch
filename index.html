@@ -853,14 +853,6 @@ input[type="range"] {
     display: none;
   }
 
-  #mainButton {
-    bottom: 85px;
-  }
-
-  .controls {
-    bottom: 5px;
-  }
-
   #lapsPanel {
     max-height: 30vh;
   }
@@ -1256,6 +1248,16 @@ input[type="range"] {
 .lap-stats{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 8px;padding:7px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid #26344966;font-variant-numeric:tabular-nums}
 .lap-stats[hidden]{display:none}
 .lap-stats b{color:#cbd5e1;font-weight:650}
+/* Short landscape screens. Keep this LAST so it beats the earlier #mainButton / .controls rules. */
+@media (max-height: 520px) {
+  #hideButtonsButton{left:auto;right:calc(10px + env(safe-area-inset-right));transform:none;bottom:calc(8px + env(safe-area-inset-bottom));min-width:0;padding:7px 14px}
+  #controls{bottom:calc(8px + env(safe-area-inset-bottom));left:10px;right:130px}
+  #mainButton{bottom:calc(66px + env(safe-area-inset-bottom));padding:10px 30px}
+  .hint{display:none}
+}
+@media (max-height: 520px) and (min-width: 951px) and (max-width: 1149px) {
+  #mainButton{bottom:calc(112px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 
@@ -1313,6 +1315,7 @@ input[type="range"] {
       <button data-precision="1" data-hideable="precision">0.0</button>
       <button data-precision="2" data-hideable="precision" aria-pressed="true">0.00</button>
       <button data-precision="3" data-hideable="precision">0.000</button>
+      <button data-precision="4" data-hideable="precision">0.0000</button>
 
     </div>
 
@@ -1416,6 +1419,7 @@ input[type="range"] {
           <label class="check-row"><input type="checkbox" id="unitMinutes" checked> Minutes</label>
           <label class="check-row"><input type="checkbox" id="unitSeconds" checked> Seconds</label>
           <label class="check-row"><input type="checkbox" id="unitMilliseconds" checked> Milliseconds</label>
+          <label class="check-row"><input type="checkbox" id="unitMicros" checked> 100 microseconds</label>
         </div>
         <div class="option-note" id="timeUnitMessage">Choose which time units appear. Disabled units are folded into the next enabled unit.</div>
       </div>
@@ -1829,10 +1833,16 @@ input[type="range"] {
             <input type="text" id="keyUndoLap" maxlength="5" value="U" autocomplete="off" spellcheck="false">
           </label>
 
+        
+          <label class="keybind-field">
+            Precision — 0.0000
+            <input type="text" id="keyPrecision4" maxlength="5" value="5" autocomplete="off" spellcheck="false">
+          </label>
+
         </div>
 
         <div id="keybindMessage">
-          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–4, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P, New tab: Q, Undo last lap: U.
+          Use one letter, number, or Space. Each shortcut must be unique. Default precision keys: 1–5, Hide Buttons: H, Tabs: T, Settings: S, Copy: C, Export: E, Close tab: W, Rename tab: N, Previous / next tab: O / P, New tab: Q, Undo last lap: U.
         </div>
         <button id="resetKeybinds">Reset shortcuts to default</button>
 
@@ -1963,7 +1973,7 @@ const lapCount = document.getElementById("lapCount");
 
 const STORAGE_KEY = "fullscreen-stopwatch-v4";
 
-const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab", "newTab", "undoLap"];
+const NEW_KEYBIND_ACTIONS = ["copy", "exportCsv", "closeTab", "renameTab", "prevTab", "nextTab", "newTab", "undoLap", "precision4"];
 
 const DEFAULT_KEYBINDS = {
   toggle: " ",
@@ -1982,6 +1992,7 @@ const DEFAULT_KEYBINDS = {
   nextTab: "p",
   newTab: "q",
   undoLap: "u",
+  precision4: "5",
   precision0: "1",
   precision1: "2",
   precision2: "3",
@@ -2061,7 +2072,7 @@ let timeUnits = {
   hours: false,
   minutes: true,
   seconds: true,
-  milliseconds: true
+  milliseconds: true, micros: true
 };
 
 let showLaps = true;
@@ -2070,6 +2081,7 @@ let confirmations = { reset: false, pause: false, lap: false, clearLaps: false, 
 let keepAwake = false;
 let titleTime = false;
 let lastShown = "";
+let hiddenSince = null; // wall-clock time the page was hidden while running
 let wakeLock = null;
 
 let hideButtonsOptions = {
@@ -2102,21 +2114,43 @@ function setDisplay(text) {
   if (text === lastShown) return;
   lastShown = text;
   display.textContent = text;
-  if (titleTime && !blindMode) {
-    const tab = getTabById(activeTabId);
-    document.title = text + " — " + (tab ? tab.name : "Stopwatch");
-  }
+  if (titleTime && !blindMode) updateDocumentTitle();
 }
 
+// Visible page: monotonic performance.now(). Hidden page: wall-clock Date.now(),
+// so the stopwatch keeps counting even if the device suspends the page.
 function getTime() {
+  if (!running) return elapsed;
+  if (hiddenSince !== null) return elapsed + Math.max(0, Date.now() - hiddenSince);
+  return elapsed + Math.max(0, performance.now() - startedAt);
+}
 
-  return elapsed +
-    (running ? Math.max(0, Date.now() - startedAt) : 0);
+function setRunClock() {
+  startedAt = performance.now();
+  hiddenSince = document.hidden ? Date.now() : null;
+}
 
+function enterBackgroundClock() {
+  if (!running || hiddenSince !== null) return;
+  elapsed += Math.max(0, performance.now() - startedAt);
+  hiddenSince = Date.now();
+}
+
+function leaveBackgroundClock() {
+  if (hiddenSince === null) return;
+  if (running) {
+    elapsed += Math.max(0, Date.now() - hiddenSince);
+    startedAt = performance.now();
+  }
+  hiddenSince = null;
 }
 
 
-function formatTime(ms) {
+function effectivePrecision() {
+  return precision > 3 && timeUnits.micros === false ? 3 : precision;
+}
+
+function formatTime(ms, precision = effectivePrecision()) {
 
   ms = Math.max(0, Number(ms) || 0);
 
@@ -2142,14 +2176,20 @@ function formatTime(ms) {
     if (unit.key === "milliseconds") {
       const isFractionalSecond = previous && previous.key === "seconds";
       const scale = isFractionalSecond ? 10 ** (3 - precision) : 1;
-      const value = Math.floor(remainder / scale);
+      const tenthsOfMs = Math.floor(remainder * 10 + 1e-6);
+      const showsTenthMs = !isFractionalSecond && precision > 3;
+      const value = isFractionalSecond && precision > 3
+        ? tenthsOfMs
+        : showsTenthMs
+          ? Math.floor(tenthsOfMs / 10)
+          : Math.floor(remainder / scale);
       const width = isFractionalSecond
         ? precision
         : previous
           ? Math.ceil(Math.log10(previous.size))
           : 1;
       return {
-        value: String(value).padStart(width, "0"),
+        value: String(value).padStart(width, "0") + (showsTenthMs ? "." + (tenthsOfMs % 10) : ""),
         separator: isFractionalSecond ? "." : ":"
       };
     }
@@ -2215,7 +2255,7 @@ function loadTabState(tab) {
 
   elapsed = restoredElapsed;
   running = restoredRunning;
-  startedAt = running ? Date.now() : 0;
+  if (running) setRunClock(); else { startedAt = 0; hiddenSince = null; }
   laps = Array.isArray(tab.laps)
     ? tab.laps.map(lap => ({ ...lap }))
     : [];
@@ -2264,12 +2304,20 @@ function createTabRecord(name) {
 }
 
 
+function updateDocumentTitle() {
+  const tab = getTabById(activeTabId);
+  const name = tab ? tab.name : "Stopwatch";
+  document.title = titleTime && !blindMode
+    ? formatTime(getTime()) + " \u2014 " + name
+    : name + " \u2014 Stopwatch";
+}
+
 function updateStopwatchHeading() {
   const active = getTabById(activeTabId);
   const name = active ? active.name : "STOPWATCH";
   const heading = document.getElementById("stopwatchHeading");
   if (heading) heading.textContent = name.toUpperCase();
-  document.title = name + " — Stopwatch";
+  updateDocumentTitle();
 }
 
 
@@ -2347,6 +2395,13 @@ function renderLaps() {
 
     row.append(number, split, total);
 
+    row.title = "Click to copy this lap's total time";
+    row.style.cursor = "pointer";
+    row.addEventListener("click", async () => {
+      const text = formatTime(lap.totalMs);
+      toast((await copyText(text)) ? "Copied " + text : "Copy failed");
+    });
+
     lapList.appendChild(row);
 
   }
@@ -2356,9 +2411,12 @@ function renderLaps() {
 
 async function recordLap() {
 
-  const total = getTime();
+  if (getTime() <= 0) { toast("Start the stopwatch first"); return; }
 
-  if (total > 0 && !(await needConfirm("lap"))) return;
+  if (!(await needConfirm("lap"))) return;
+
+  // Read the clock only after the popup is accepted.
+  const total = getTime();
 
   if (total <= 0) {
 
@@ -3210,6 +3268,7 @@ soundButton.addEventListener("click", () => {
 
   } else {
 
+    stopStartSoundPlayback();
     stopCustomPlayers();
 
   }
@@ -3240,6 +3299,7 @@ const KEYBIND_FIELDS = {
   nextTab: document.getElementById("keyNextTab"),
   newTab: document.getElementById("keyNewTab"),
   undoLap: document.getElementById("keyUndoLap"),
+  precision4: document.getElementById("keyPrecision4"),
   precision0: document.getElementById("keyPrecision0"),
   precision1: document.getElementById("keyPrecision1"),
   precision2: document.getElementById("keyPrecision2"),
@@ -3393,7 +3453,8 @@ const TIME_UNIT_FIELDS = {
   hours: document.getElementById("unitHours"),
   minutes: document.getElementById("unitMinutes"),
   seconds: document.getElementById("unitSeconds"),
-  milliseconds: document.getElementById("unitMilliseconds")
+  milliseconds: document.getElementById("unitMilliseconds"),
+  micros: document.getElementById("unitMicros")
 };
 
 const showLapsToggle = document.getElementById("showLapsToggle");
@@ -3446,7 +3507,7 @@ for (const [unit, input] of Object.entries(TIME_UNIT_FIELDS)) {
       Object.entries(TIME_UNIT_FIELDS).map(([key, field]) => [key, field.checked])
     );
 
-    if (!Object.values(candidate).some(Boolean)) {
+    if (!["days", "hours", "minutes", "seconds", "milliseconds"].some(key => candidate[key])) {
       input.checked = true;
       candidate[unit] = true;
       timeUnitMessage.textContent = "At least one time unit must remain enabled.";
@@ -3827,7 +3888,7 @@ function loadSavedData() {
 
   // Precision
 
-  if (data.settingsVersion >= 5 && [0, 1, 2, 3].includes(Number(data.precision))) {
+  if (data.settingsVersion >= 5 && [0, 1, 2, 3, 4].includes(Number(data.precision)) && Number(data.precision) <= MAX_PRECISION) {
 
     precision = Number(data.precision);
 
@@ -3932,13 +3993,14 @@ function loadSavedData() {
       hours: data.timeUnits.hours !== false,
       minutes: data.timeUnits.minutes !== false,
       seconds: data.timeUnits.seconds !== false,
-      milliseconds: data.timeUnits.milliseconds !== false
+      milliseconds: data.timeUnits.milliseconds !== false,
+      micros: data.timeUnits.micros !== false
     };
-    if (!Object.values(timeUnits).some(Boolean)) {
-      timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true };
+    if (!["days", "hours", "minutes", "seconds", "milliseconds"].some(key => timeUnits[key])) {
+      timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true, micros: true };
     }
   } else {
-    timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true };
+    timeUnits = { days: false, hours: false, minutes: true, seconds: true, milliseconds: true, micros: true };
   }
 
   showLaps = data.showLaps !== false;
@@ -4256,6 +4318,7 @@ function applyBlindMode() {
     ? "Turn Blind Mode off (B)"
     : "Turn Blind Mode on (B)";
 
+  updateDocumentTitle();
 }
 
 async function toggleBlindMode() {
@@ -4342,7 +4405,7 @@ function start() {
 
   running = true;
 
-  startedAt = Date.now();
+  setRunClock();
 
   mainButton.textContent = "Pause";
 
@@ -4490,7 +4553,7 @@ document.getElementById("resetButton")
 
 function setPrecision(value) {
 
-  if (![0, 1, 2, 3].includes(Number(value))) return;
+  if (![0, 1, 2, 3, 4].includes(Number(value)) || Number(value) > MAX_PRECISION) return;
 
   precision = Number(value);
 
@@ -4755,7 +4818,7 @@ document.addEventListener("keydown", event => {
 
   // Precision shortcuts
 
-  for (let value = 0; value <= 3; value++) {
+  for (let value = 0; value <= MAX_PRECISION; value++) {
 
     if (matchesKey(event, keybinds[`precision${value}`])) {
 
@@ -4793,15 +4856,18 @@ setInterval(() => {
 // Save when the browser hides or leaves the page.
 
 document.addEventListener("visibilitychange", () => {
-
   if (document.hidden) {
+    enterBackgroundClock();
     persistData();
+  } else {
+    leaveBackgroundClock();
   }
-
 });
 
 
 window.addEventListener("pagehide", () => {
+
+  enterBackgroundClock();
 
   persistData();
 
@@ -4945,7 +5011,7 @@ function csvCell(value) {
 function exportLapsCSV() {
   if (!laps.length) { toast("No laps to export"); return; }
   const rows = [["Lap", "Split", "Total", "Split (ms)", "Total (ms)"]].concat(
-    laps.map(l => [l.number, formatTime(l.splitMs), formatTime(l.totalMs), Math.round(l.splitMs), Math.round(l.totalMs)])
+    laps.map(l => [l.number, formatTime(l.splitMs), formatTime(l.totalMs), +l.splitMs.toFixed(3), +l.totalMs.toFixed(3)])
   );
   const csv = "\ufeff" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
   const tab = getTabById(activeTabId);
@@ -4996,13 +5062,47 @@ document.getElementById("keepAwakeToggle").addEventListener("change", event => {
 
 document.getElementById("titleTimeToggle").addEventListener("change", event => {
   titleTime = event.target.checked;
-  lastShown = "";
-  if (!titleTime) updateStopwatchHeading();
-  setDisplay(formatTime(getTime()));
+  updateDocumentTitle();
   persistData();
 });
 
 setInterval(syncWakeLock, 1000);
+
+
+// ============================================
+// FINE TIMER DETECTION (100 microseconds)
+// ============================================
+
+function detectFineTimer() {
+  try {
+    let smallest = Infinity;
+    let last = performance.now();
+    const end = last + 30;
+    let ticks = 0;
+    let now;
+    while ((now = performance.now()) < end && ticks < 50) {
+      const delta = now - last;
+      if (delta > 0) { smallest = Math.min(smallest, delta); ticks++; last = now; }
+    }
+    return smallest <= 0.25;
+  } catch (error) {
+    return false;
+  }
+}
+
+const HAS_FINE_TIMER = detectFineTimer();
+const MAX_PRECISION = HAS_FINE_TIMER ? 4 : 3;
+
+if (!HAS_FINE_TIMER) {
+  const fineButton = document.querySelector('[data-precision="4"]');
+  if (fineButton) fineButton.remove();
+  for (const id of ["keyPrecision4", "unitMicros"]) {
+    const holder = document.getElementById(id) && document.getElementById(id).closest("label");
+    if (holder) holder.remove();
+  }
+  delete KEYBIND_FIELDS.precision4;
+  keybindMessage.textContent = keybindMessage.textContent.replace("1–5", "1–4");
+}
 
 
 // ============================================
@@ -5077,7 +5177,7 @@ if (saveEnabled) {
 
 if (running) {
 
-  startedAt = Date.now();
+  setRunClock();
 
   mainButton.textContent = "Pause";
 
