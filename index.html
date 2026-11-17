@@ -1258,6 +1258,16 @@ input[type="range"] {
 @media (max-height: 520px) and (min-width: 951px) and (max-width: 1149px) {
   #mainButton{bottom:calc(112px + env(safe-area-inset-bottom))}
 }
+
+/* Time alert, shortcuts list, backup */
+@keyframes alertFlash{0%,50%,100%{opacity:1}25%,75%{opacity:.12}}
+#time.alert-flash{animation:alertFlash 1.2s ease}
+#alertTime{width:86px;background:#0c1320;border:1px solid var(--border);color:inherit;border-radius:8px;padding:7px 9px;font:inherit;font-variant-numeric:tabular-nums}
+#alertTime.invalid{border-color:#ef4444}
+.setting-buttons{display:flex;flex-wrap:wrap;gap:8px}
+#confirmText{white-space:pre-line}
+.confirm-box{max-height:90vh;overflow:auto}
+.confirm-skip[hidden],#confirmCancel[hidden]{display:none}
 </style>
 </head>
 
@@ -1491,6 +1501,34 @@ input[type="range"] {
           <label class="check-row"><input type="checkbox" data-compact-option="clearLaps"> Clear laps</label>
         </div>
         <div class="setting-description">Small screens only show Start, Reset, Lap, Settings and Fullscreen by default. Turn on any extra buttons you want here. Wide screens always show everything.</div>
+      </div>
+
+      <div class="setting">
+        <div class="setting-title"><span>Time alert</span></div>
+        <div class="option-grid">
+          <label class="check-row"><input type="checkbox" id="alertToggle"> Alert at</label>
+          <input type="text" id="alertTime" value="1:00" maxlength="12" inputmode="numeric" aria-label="Alert time" autocomplete="off" spellcheck="false">
+          <label class="check-row"><input type="checkbox" id="alertRepeat"> Repeat at every multiple</label>
+        </div>
+        <div class="setting-description">Flashes the time, vibrates and plays the end sound when the stopwatch reaches this time. Type seconds (90), minutes:seconds (1:30) or hours:minutes:seconds. Repeat alerts again every time that much more time passes.</div>
+      </div>
+
+      <div class="setting">
+        <div class="setting-title"><span>Hands-free</span></div>
+        <div class="option-grid">
+          <label class="check-row"><input type="checkbox" id="speakLapsToggle"> Speak each lap aloud</label>
+        </div>
+      </div>
+
+      <div class="setting">
+        <div class="setting-title"><span>Backup and help</span></div>
+        <div class="setting-buttons">
+          <button id="exportBackupButton">Export backup</button>
+          <button id="importBackupButton">Import backup</button>
+          <button id="showShortcutsButton">Keyboard shortcuts</button>
+        </div>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+        <div class="setting-description">A backup file holds all settings, tabs, laps and times, so you can move them to another browser or device. You can also press ? any time to see your shortcuts.</div>
       </div>
 
       <!-- VOLUME -->
@@ -2081,6 +2119,10 @@ let confirmations = { reset: false, pause: false, lap: false, clearLaps: false, 
 let keepAwake = false;
 let titleTime = false;
 let lastShown = "";
+let alertSettings = { enabled: false, text: "1:00", repeat: false };
+let alertMs = 0;
+let alertMark = 0;
+let speakLaps = false;
 let hiddenSince = null; // wall-clock time the page was hidden while running
 let wakeLock = null;
 
@@ -2176,20 +2218,16 @@ function formatTime(ms, precision = effectivePrecision()) {
     if (unit.key === "milliseconds") {
       const isFractionalSecond = previous && previous.key === "seconds";
       const scale = isFractionalSecond ? 10 ** (3 - precision) : 1;
-      const tenthsOfMs = Math.floor(remainder * 10 + 1e-6);
-      const showsTenthMs = !isFractionalSecond && precision > 3;
       const value = isFractionalSecond && precision > 3
-        ? tenthsOfMs
-        : showsTenthMs
-          ? Math.floor(tenthsOfMs / 10)
-          : Math.floor(remainder / scale);
+        ? Math.floor(remainder * 10 + 1e-6)
+        : Math.floor(remainder / scale);
       const width = isFractionalSecond
         ? precision
         : previous
           ? Math.ceil(Math.log10(previous.size))
           : 1;
       return {
-        value: String(value).padStart(width, "0") + (showsTenthMs ? "." + (tenthsOfMs % 10) : ""),
+        value: String(value).padStart(width, "0"),
         separator: isFractionalSecond ? "." : ":"
       };
     }
@@ -2439,6 +2477,7 @@ async function recordLap() {
   };
 
   laps.push(lap);
+  if (speakLaps) speakLap(lap);
 
   renderLaps();
 
@@ -3797,6 +3836,8 @@ function persistData() {
       keepAwake,
       titleTime,
       compactVisible,
+      alertSettings,
+      speakLaps,
       settingsVersion: 5,
 
       // Independent stopwatch tabs
@@ -4021,6 +4062,14 @@ function loadSavedData() {
   }
   keepAwake = Boolean(data.keepAwake);
   titleTime = Boolean(data.titleTime);
+  if (data.alertSettings && typeof data.alertSettings === "object") {
+    alertSettings = {
+      enabled: Boolean(data.alertSettings.enabled),
+      text: String(data.alertSettings.text || "1:00").slice(0, 12),
+      repeat: Boolean(data.alertSettings.repeat)
+    };
+  }
+  speakLaps = Boolean(data.speakLaps);
   if (data.compactVisible && typeof data.compactVisible === "object") {
     for (const key of COMPACT_OPTIONS) compactVisible[key] = Boolean(data.compactVisible[key]);
   }
@@ -4264,6 +4313,11 @@ function syncUI() {
   });
   document.querySelectorAll("[data-confirm]").forEach(i => { i.checked = Boolean(confirmations[i.dataset.confirm]); });
   document.querySelectorAll("[data-compact-option]").forEach(i => { i.checked = Boolean(compactVisible[i.dataset.compactOption]); });
+  document.getElementById("alertToggle").checked = alertSettings.enabled;
+  document.getElementById("alertRepeat").checked = alertSettings.repeat;
+  document.getElementById("alertTime").value = alertSettings.text;
+  document.getElementById("speakLapsToggle").checked = speakLaps;
+  applyAlertSettings();
   document.getElementById("keepAwakeToggle").checked = keepAwake;
   document.getElementById("titleTimeToggle").checked = titleTime;
   applyLapVisibility();
@@ -4381,6 +4435,7 @@ settingsOverlay.addEventListener("click", event => {
 // ============================================
 
 function update() {
+  checkAlert();
 
   setDisplay(formatTime(getTime()));
 
@@ -4806,6 +4861,7 @@ document.addEventListener("keydown", event => {
     tabNameInput.select();
     return;
   }
+  if (event.key === "?") { event.preventDefault(); showShortcuts(); return; }
   if (matchesKey(event, keybinds.undoLap)) { event.preventDefault(); undoLastLap(); return; }
   if (matchesKey(event, keybinds.newTab)) {
     event.preventDefault();
@@ -4844,6 +4900,7 @@ document.addEventListener("keydown", event => {
 
 setInterval(() => {
 
+  checkAlert();
   if (running && saveEnabled && document.hasFocus()) {
     persistData();
   }
@@ -4922,6 +4979,8 @@ function askConfirm(info) {
   document.getElementById("confirmText").textContent = info.body;
   document.getElementById("confirmOk").textContent = info.ok;
   document.getElementById("confirmSkip").checked = false;
+  document.getElementById("confirmCancel").hidden = Boolean(info.info);
+  document.querySelector(".confirm-skip").hidden = Boolean(info.info);
   confirmReturnFocus = document.activeElement;
   confirmOverlay.classList.add("open");
   document.getElementById(info.focusCancel ? "confirmCancel" : "confirmOk").focus();
@@ -5103,6 +5162,151 @@ if (!HAS_FINE_TIMER) {
   delete KEYBIND_FIELDS.precision4;
   keybindMessage.textContent = keybindMessage.textContent.replace("1–5", "1–4");
 }
+
+
+// ============================================
+// TIME ALERT, SPOKEN LAPS, BACKUP, SHORTCUT LIST
+// ============================================
+
+// "90" -> 90 s, "1:30" -> 90 s, "1:02:03" -> 3723 s. Returns milliseconds, 0 if invalid.
+function parseClock(text) {
+  const parts = String(text).trim().split(":").map(part => (part.trim() === "" ? NaN : Number(part)));
+  if (parts.length < 1 || parts.length > 3 || parts.some(n => !Number.isFinite(n) || n < 0)) return 0;
+  return parts.reduce((total, n) => total * 60 + n, 0) * 1000;
+}
+
+function resetAlertMark() {
+  alertMark = alertMs > 0 ? Math.floor(getTime() / alertMs) : 0;
+}
+
+function applyAlertSettings() {
+  alertMs = parseClock(alertSettings.text);
+  resetAlertMark();
+}
+
+function fireAlert(ms) {
+  toast(blindMode ? "\u23f0 Alert" : "\u23f0 " + formatTime(ms));
+  display.classList.remove("alert-flash");
+  void display.offsetWidth;
+  display.classList.add("alert-flash");
+  playStopwatchSound("end");
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+function checkAlert() {
+  if (!alertSettings.enabled || !running || alertMs <= 0) return;
+  const index = Math.floor(getTime() / alertMs);
+  if (index < alertMark) alertMark = index; // the timer was reset
+  if (index > alertMark) {
+    const first = alertMark === 0;
+    alertMark = index;
+    if (alertSettings.repeat || first) fireAlert(index * alertMs);
+  }
+}
+
+document.getElementById("alertToggle").addEventListener("change", event => {
+  alertSettings.enabled = event.target.checked;
+  applyAlertSettings();
+  persistData();
+});
+document.getElementById("alertRepeat").addEventListener("change", event => {
+  alertSettings.repeat = event.target.checked;
+  persistData();
+});
+document.getElementById("alertTime").addEventListener("input", event => {
+  const valid = parseClock(event.target.value) > 0;
+  event.target.classList.toggle("invalid", !valid);
+  if (!valid) return;
+  alertSettings.text = event.target.value.trim();
+  applyAlertSettings();
+  persistData();
+});
+
+function speakLap(lap) {
+  if (!("speechSynthesis" in window)) return;
+  const seconds = lap.splitMs / 1000;
+  const minutes = Math.floor(seconds / 60);
+  const rest = (seconds - minutes * 60).toFixed(precision > 0 ? 1 : 0);
+  const text = "Lap " + lap.number + ", " + (minutes ? minutes + (minutes === 1 ? " minute " : " minutes ") : "") + rest + " seconds";
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+if (!("speechSynthesis" in window)) {
+  document.getElementById("speakLapsToggle").closest("label").remove();
+}
+document.getElementById("speakLapsToggle").addEventListener("change", event => {
+  speakLaps = event.target.checked;
+  persistData();
+});
+
+function exportBackup() {
+  persistData();
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) { toast("Turn on saving to export a backup"); return; }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
+  link.download = "stopwatch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  toast("Backup downloaded");
+}
+
+async function importBackup(file) {
+  if (!file) return;
+  if (!saveEnabled) { toast("Turn on \u201cSave settings and data\u201d first"); return; }
+  let data;
+  try {
+    if (file.size > 25e6) throw new Error("too large");
+    data = JSON.parse(await file.text());
+    if (!data || typeof data !== "object" || Array.isArray(data) || !(Array.isArray(data.tabs) || data.keybinds)) throw new Error("shape");
+  } catch (error) {
+    toast("That file isn't a valid backup");
+    return;
+  }
+  const ok = await askConfirm({
+    title: "Restore this backup?", ok: "Restore", focusCancel: true,
+    body: "All current settings, tabs, laps and times in this browser are replaced by the contents of \u201c" + file.name + "\u201d. This can't be undone."
+  });
+  if (!ok) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    loadSavedData();
+    syncUI();
+    renderTabs();
+    toast("Backup restored");
+  } catch (error) {
+    toast("Couldn't restore that backup");
+  }
+}
+
+const SHORTCUT_LABELS = [
+  ["toggle", "Start / pause"], ["reset", "Reset"], ["lap", "Record lap"], ["undoLap", "Undo last lap"],
+  ["fullscreen", "Fullscreen"], ["blind", "Blind mode"], ["hideButtons", "Hide buttons"], ["tabs", "Tabs menu"],
+  ["newTab", "New tab"], ["closeTab", "Close tab"], ["renameTab", "Rename tab"], ["prevTab", "Previous tab"],
+  ["nextTab", "Next tab"], ["copy", "Copy time"], ["exportCsv", "Export laps CSV"], ["settings", "Settings"]
+];
+
+function showShortcuts() {
+  const lines = SHORTCUT_LABELS.filter(([action]) => keybinds[action])
+    .map(([action, label]) => displayKey(keybinds[action]) + "  \u2014  " + label);
+  const precisionKeys = [];
+  for (let i = 0; i <= MAX_PRECISION; i++) if (keybinds["precision" + i]) precisionKeys.push(displayKey(keybinds["precision" + i]));
+  if (precisionKeys.length) lines.push(precisionKeys.join(" ") + "  \u2014  Precision");
+  lines.push("?  \u2014  This list");
+  askConfirm({ title: "Keyboard shortcuts", body: lines.join("\n"), ok: "Close", info: true });
+}
+
+document.getElementById("showShortcutsButton").addEventListener("click", showShortcuts);
+document.getElementById("exportBackupButton").addEventListener("click", exportBackup);
+document.getElementById("importBackupButton").addEventListener("click", () => document.getElementById("importFile").click());
+document.getElementById("importFile").addEventListener("change", event => {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  importBackup(file);
+});
 
 
 // ============================================
